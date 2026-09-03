@@ -5,9 +5,10 @@ rest of the codebase (and later, the mapper/anti-corruption layer) doesn't
 depend on vnstock's class structure directly.
 """
 
-from vnstock import Market
+from vnstock import Listing, Market
 
 _market = Market()
+_listing = Listing()
 
 
 def fetch_ohlcv(symbol: str, start: str, end: str):
@@ -19,6 +20,15 @@ def fetch_ohlcv(symbol: str, start: str, end: str):
     Trả về pandas.DataFrame với các cột: time, open, high, low, close, volume.
     """
     return _market.equity(symbol).ohlcv(start=start, end=end)
+
+
+def fetch_listing():
+    """Fetch toàn bộ danh sách mã cổ phiếu (không gồm cw/fund/future/bond) kèm tên công ty và sàn.
+
+    Trả về pandas.DataFrame với các cột: symbol, organ_name, exchange.
+    """
+    df = _listing.symbols_by_exchange()
+    return df.loc[df["type"] == "stock", ["symbol", "organ_name", "exchange"]]
 
 
 if __name__ == "__main__":

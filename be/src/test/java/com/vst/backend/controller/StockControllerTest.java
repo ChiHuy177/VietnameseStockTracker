@@ -8,8 +8,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.vst.backend.dto.OhlcvBarResponse;
 import com.vst.backend.dto.OhlcvHistoryResponse;
+import com.vst.backend.dto.StockSummaryResponse;
 import com.vst.backend.exception.ResourceNotFoundException;
 import com.vst.backend.service.OhlcvQueryService;
+import com.vst.backend.service.StockSearchService;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -28,6 +30,9 @@ class StockControllerTest {
 
     @MockBean
     private OhlcvQueryService ohlcvQueryService;
+
+    @MockBean
+    private StockSearchService stockSearchService;
 
     @Test
     void returnsOhlcvHistory() throws Exception {
@@ -51,5 +56,16 @@ class StockControllerTest {
 
         mockMvc.perform(get("/api/v1/stocks/ZZZZ/ohlcv?start=2026-08-01&end=2026-09-03"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void returnsSearchResults() throws Exception {
+        when(stockSearchService.search("vnm"))
+                .thenReturn(List.of(new StockSummaryResponse("VNM", "CTCP Sữa Việt Nam", "HOSE")));
+
+        mockMvc.perform(get("/api/v1/stocks?q=vnm"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].symbol", is("VNM")))
+                .andExpect(jsonPath("$[0].exchange", is("HOSE")));
     }
 }

@@ -1,5 +1,6 @@
 package com.vst.backend.repository;
 
+import com.vst.backend.dto.vnstock.VnstockListingItemDto;
 import com.vst.backend.dto.vnstock.VnstockOhlcvDto;
 import com.vst.backend.exception.DataFetchException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
@@ -36,6 +37,20 @@ public class VnstockClient {
                     });
         } catch (RestClientException e) {
             throw new DataFetchException("Failed to fetch OHLCV for " + symbol + " from vnstock service", e);
+        }
+    }
+
+    @Retry(name = "vnstock")
+    @CircuitBreaker(name = "vnstock")
+    public List<VnstockListingItemDto> fetchListing() {
+        try {
+            return restClient.get()
+                    .uri("/listing")
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<List<VnstockListingItemDto>>() {
+                    });
+        } catch (RestClientException e) {
+            throw new DataFetchException("Failed to fetch stock listing from vnstock service", e);
         }
     }
 }

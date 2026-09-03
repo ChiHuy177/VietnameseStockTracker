@@ -15,7 +15,7 @@ if sys.stdout.encoding is None or sys.stdout.encoding.lower() != "utf-8":
 
 from fastapi import FastAPI, HTTPException
 
-from vst_python.fetcher import fetch_ohlcv
+from vst_python.fetcher import fetch_listing, fetch_ohlcv
 
 app = FastAPI(title="vst-python")
 
@@ -27,6 +27,16 @@ def get_ohlcv(symbol: str, start: str, end: str):
     except (Exception, SystemExit) as exc:
         # vnai calls sys.exit() when its own rate limit is hit. SystemExit doesn't subclass
         # Exception, so it has to be caught explicitly or it crashes the request uncaught.
+        raise HTTPException(status_code=502, detail=f"vnstock fetch failed: {exc}") from exc
+
+    return df.to_dict(orient="records")
+
+
+@app.get("/listing")
+def get_listing():
+    try:
+        df = fetch_listing()
+    except (Exception, SystemExit) as exc:
         raise HTTPException(status_code=502, detail=f"vnstock fetch failed: {exc}") from exc
 
     return df.to_dict(orient="records")

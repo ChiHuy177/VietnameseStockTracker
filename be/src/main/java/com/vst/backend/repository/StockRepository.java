@@ -1,5 +1,7 @@
 package com.vst.backend.repository;
 
+import com.vst.backend.model.StockListing;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -14,6 +16,18 @@ public class StockRepository {
             """;
 
     private static final String FIND_BY_SYMBOL_SQL = "SELECT id FROM stocks WHERE symbol = ?";
+
+    private static final String UPSERT_LISTING_SQL = """
+            INSERT INTO stocks (symbol, name, exchange) VALUES (?, ?, ?)
+            ON CONFLICT (symbol) DO UPDATE SET name = EXCLUDED.name, exchange = EXCLUDED.exchange
+            """;
+
+    private static final String SEARCH_SQL = """
+            SELECT symbol, name, exchange FROM stocks
+            WHERE symbol ILIKE ? OR name ILIKE ?
+            ORDER BY symbol
+            LIMIT ?
+            """;
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -31,5 +45,23 @@ public class StockRepository {
         return jdbcTemplate.query(FIND_BY_SYMBOL_SQL, (rs, rowNum) -> rs.getLong("id"), symbol)
                 .stream()
                 .findFirst();
+    }
+
+    /** Idempotent batch upsert of company name/exchange metadata. Used by the listing sync job. */
+    public void upsertListing(List<StockListing> listing) {
+        jdbcTemplate.batchUpdate(UPSERT_LISTING_SQL, listing, listing.size(),
+                (ps, item) -> {
+                    ps.setString(1, item.symbol());
+                    ps.setString(2, item.name());
+                    ps.setString(3, item.exchange());
+                });
+    }
+
+    /** Case-insensitive substring match on symbol or company name. Used by the search endpoint. */
+    public List<StockListing> search(String query, int limit) {
+        String pattern = "%" + query + "%";
+        return jdbcTemplate.query(SEARCH_SQL,
+                (rs, rowNum) -> new StockListing(rs.getString("symbol"), rs.getString("name"), rs.getString("exchange")),
+                pattern, pattern, limit);
     }
 }
