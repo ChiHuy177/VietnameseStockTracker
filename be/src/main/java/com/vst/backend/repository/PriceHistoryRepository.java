@@ -2,6 +2,8 @@ package com.vst.backend.repository;
 
 import com.vst.backend.model.OhlcvBar;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -20,6 +22,13 @@ public class PriceHistoryRepository {
                 volume = EXCLUDED.volume,
                 source = EXCLUDED.source,
                 fetched_at = now()
+            """;
+
+    private static final String FIND_BY_RANGE_SQL = """
+            SELECT stock_id, time, interval, open, high, low, close, volume, source
+            FROM price_history_ohlcv
+            WHERE stock_id = ? AND time >= ? AND time < ?
+            ORDER BY time
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -41,5 +50,23 @@ public class PriceHistoryRepository {
             ps.setLong(8, bar.volume());
             ps.setString(9, bar.source());
         });
+    }
+
+    /** end is inclusive (whole day) — queried as [start, end+1 day) to avoid missing intraday bars. */
+    public List<OhlcvBar> findByStockIdAndRange(long stockId, LocalDate start, LocalDate end) {
+        Timestamp from = Timestamp.from(start.atStartOfDay(ZoneOffset.UTC).toInstant());
+        Timestamp to = Timestamp.from(end.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant());
+
+        return jdbcTemplate.query(FIND_BY_RANGE_SQL, (rs, rowNum) -> new OhlcvBar(
+                rs.getLong("stock_id"),
+                rs.getTimestamp("time").toInstant(),
+                rs.getString("interval"),
+                rs.getBigDecimal("open"),
+                rs.getBigDecimal("high"),
+                rs.getBigDecimal("low"),
+                rs.getBigDecimal("close"),
+                rs.getLong("volume"),
+                rs.getString("source")),
+                stockId, from, to);
     }
 }
