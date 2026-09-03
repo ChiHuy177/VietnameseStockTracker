@@ -42,8 +42,12 @@ Chỉ dùng phần fetch dữ liệu (`Market`, `Fundamental`, ...) của `vnsto
 ## Chạy API server
 
 ```bash
-uvicorn vst_python.api:app --port 8000
+uvicorn vst_python.api:app --port 8000 --env-file ../.env
 ```
+
+`--env-file` nạp file `.env` ở root (chung với `be/`, xem `.env.example`) vào biến môi trường của
+process trước khi chạy — kể cả `VNSTOCK_API_KEY` nếu có điền. Không cần file `.env` riêng cho
+`python/`.
 
 ### Rate limit của vnstock (do `vnai` áp, không phải do mình tự đặt)
 
