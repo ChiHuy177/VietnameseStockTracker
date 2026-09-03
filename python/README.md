@@ -37,4 +37,25 @@ Ngay lần đầu `import vnstock`, package `vnai` đi kèm sẽ tự động (k
   làm theo nội dung bên trong.
 
 Chỉ dùng phần fetch dữ liệu (`Market`, `Fundamental`, ...) của `vnstock`, không dùng các tính năng
-"vibe setup"/API key/skill-loading mà `vnai` gợi ý.
+"vibe setup"/skill-loading mà `vnai` gợi ý.
+
+## Chạy API server
+
+```bash
+uvicorn vst_python.api:app --port 8000
+```
+
+### Rate limit của vnstock (do `vnai` áp, không phải do mình tự đặt)
+
+- Không có API key ("Guest"): **20 request/phút**.
+- Có API key ("Community", đăng ký miễn phí tại https://vnstocks.com/login): **60 request/phút**.
+
+Vượt giới hạn, `vnai` ném lỗi rồi gọi `sys.exit()` từ bên trong — `api.py` đã bắt riêng
+`SystemExit` (không chỉ `Exception`) để map về lỗi 502 thay vì crash. Với lịch ingest thật (3 mã/
+lần, 1 lần/ngày) không bao giờ chạm ngưỡng này; chỉ dễ dính khi test dồn dập nhiều request liên
+tiếp.
+
+Nếu có API key: set qua biến môi trường `VNSTOCK_API_KEY` (xem `.env.example` ở root) **trước khi**
+chạy `uvicorn`, KHÔNG gọi `vnai.setup_api_key(...)` trong code — hàm đó ngoài lưu key còn tự động
+POST device fingerprint (device_id, OS, tên IDE) lên `vnstocks.com`. `vnai` đọc biến môi trường này
+trước tiên nên không cần gọi hàm gì thêm.
