@@ -29,6 +29,8 @@ python/venv/
 python/**/.pytest_cache/
 python/dist/
 python/build/
+# vnai (dependency of vnstock) auto-writes this on import — see python/README.md troubleshooting note.
+python/**/AGENTS.md
 
 # IDE
 .idea/

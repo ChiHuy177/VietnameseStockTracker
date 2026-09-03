@@ -3,7 +3,7 @@ name = "vst-python"
 version = "0.1.0"
 description = "Vietnamese Stock Tracker - data fetching / ML microservice (vnstock)"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = ["vnstock"]
 
 [build-system]
 requires = ["hatchling"]
