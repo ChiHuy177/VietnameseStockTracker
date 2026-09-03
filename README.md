@@ -7,7 +7,7 @@ rộng thành hệ thống phân tích/gợi ý dựa trên dữ liệu lịch s
 
 ```
 be/       Backend API (Spring Boot, Java 21, Maven)
-fe/       Frontend (React + TypeScript + Vite)          — thêm ở bước sau
+fe/       Frontend (React + TypeScript + Vite)
 python/   Data fetching / ML microservice (vnstock)      — thêm ở bước sau
 ```
 
@@ -63,10 +63,43 @@ từ `.env`.
 Lỗi trả về theo chuẩn RFC 7807 (`ProblemDetail`), xử lý tập trung tại `GlobalExceptionHandler`,
 không try/catch rải rác trong controller/service.
 
+## Chạy frontend (fe/)
+
+```bash
+cd fe
+npm install
+npm run dev
+```
+
+Mở `http://localhost:5173`. Dev server proxy mọi request `/api/*` sang backend ở `localhost:8080`
+(cấu hình trong `vite.config.ts`) nên không cần bật CORS ở backend lúc dev.
+
+Build production (chạy `tsc -b` với TypeScript strict mode trước, rồi `vite build`):
+
+```bash
+npm run build
+```
+
+## Kiến trúc frontend
+
+```
+src/
+├── app/               # app shell (App.tsx)
+└── features/
+    └── health/        # gọi GET /api/v1/health, hiển thị trạng thái backend
+        ├── api.ts
+        ├── types.ts
+        └── HealthCheck.tsx
+```
+
+Tổ chức theo feature (không theo loại file như `components/`, `hooks/`) — mỗi feature nghiệp vụ
+sau này (giá cổ phiếu, danh mục theo dõi...) sẽ là 1 thư mục con trong `features/`, gói gọn API
+call, type, và component liên quan.
+
 ## Tiến độ
 
 - [x] Phase 0 — Bước 1: Root + Backend skeleton (health endpoint, exception handling, config profiles)
 - [x] Phase 0 — Bước 2: Docker Compose + TimescaleDB
-- [ ] Phase 0 — Bước 3: Frontend scaffold
+- [x] Phase 0 — Bước 3: Frontend scaffold
 - [ ] Phase 0 — Bước 4: Python service scaffold
 - [ ] Phase 0 — Bước 5: CI (GitHub Actions)
