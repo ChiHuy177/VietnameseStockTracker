@@ -128,10 +128,16 @@ pip install -e .
 "src layout" (`src/vst_python/`) để tránh nhầm giữa code nguồn và bản đã cài. Phase 1 sẽ thêm
 `vnstock` vào `dependencies` trong `pyproject.toml` và viết fetcher thật.
 
+## CI (GitHub Actions)
+
+`.github/workflows/ci.yml` chạy 3 job song song trên mọi push/PR vào `main`: `backend` (`mvnw verify`),
+`frontend` (`npm ci && npm run lint && npm run build`), `python` (`pip install -e .` rồi import thử).
+Chưa có bước deploy — CI hiện tại chỉ để bắt lỗi build/test sớm, đúng tinh thần tối giản của Phase 0.
+
 ## Tiến độ
 
 - [x] Phase 0 — Bước 1: Root + Backend skeleton (health endpoint, exception handling, config profiles)
 - [x] Phase 0 — Bước 2: Docker Compose + TimescaleDB
 - [x] Phase 0 — Bước 3: Frontend scaffold
 - [x] Phase 0 — Bước 4: Python service scaffold
-- [ ] Phase 0 — Bước 5: CI (GitHub Actions)
+- [x] Phase 0 — Bước 5: CI (GitHub Actions)
