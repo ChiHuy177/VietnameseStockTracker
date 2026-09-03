@@ -1,24 +1,27 @@
+import axios from 'axios';
 import { useEffect, useState } from 'react';
-import { fetchHealth } from './api';
-import type { HealthResponse } from './types';
+import type { HealthStatus } from '../../models/health';
+import { getHealth } from '../../services/healthService';
 
 type State =
   | { kind: 'loading' }
-  | { kind: 'success'; data: HealthResponse }
+  | { kind: 'success'; data: HealthStatus }
   | { kind: 'error'; message: string };
+
+function toErrorMessage(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    return (error.response?.data as { detail?: string } | undefined)?.detail ?? error.message;
+  }
+  return error instanceof Error ? error.message : 'Unknown error';
+}
 
 export function HealthCheck() {
   const [state, setState] = useState<State>({ kind: 'loading' });
 
   useEffect(() => {
-    fetchHealth()
+    getHealth()
       .then((data) => setState({ kind: 'success', data }))
-      .catch((error: unknown) =>
-        setState({
-          kind: 'error',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        }),
-      );
+      .catch((error: unknown) => setState({ kind: 'error', message: toErrorMessage(error) }));
   }, []);
 
   if (state.kind === 'loading') {

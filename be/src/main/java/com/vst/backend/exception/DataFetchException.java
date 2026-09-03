@@ -10,10 +10,10 @@ import org.springframework.http.HttpStatus;
 public class DataFetchException extends AppException {
 
     public DataFetchException(String message) {
-        super(message, HttpStatus.BAD_GATEWAY);
+        super(message, HttpStatus.BAD_GATEWAY, "DATA_FETCH_ERROR");
     }
 
     public DataFetchException(String message, Throwable cause) {
-        super(message, HttpStatus.BAD_GATEWAY, cause);
+        super(message, HttpStatus.BAD_GATEWAY, "DATA_FETCH_ERROR", cause);
     }
 }

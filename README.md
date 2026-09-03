@@ -58,10 +58,25 @@ từ `.env`.
 - `repository/` — data access: Spring Data repository, external API client (trống ở Phase 0, sẽ có từ Phase 1)
 - `model/` — domain/entity object (ví dụ: `HealthStatus`)
 - `dto/` — request/response shape cho API, tách biệt khỏi `model/` (ví dụ: `HealthResponse`)
-- `exception/` — exception hierarchy (`AppException` và các lớp con) + `GlobalExceptionHandler`
+- `exception/` — exception hierarchy + `GlobalExceptionHandler`
 
 Lỗi trả về theo chuẩn RFC 7807 (`ProblemDetail`), xử lý tập trung tại `GlobalExceptionHandler`,
-không try/catch rải rác trong controller/service.
+không try/catch rải rác trong controller/service. Mọi response lỗi có thêm 2 field ngoài chuẩn
+RFC 7807 (`type`/`title`/`status`/`detail`/`instance`): `errorCode` (mã ổn định, máy đọc được, để
+client branch theo code thay vì parse message) và `timestamp`.
+
+`AppException` (abstract, base) là cha của:
+
+| Exception | HTTP status | errorCode |
+|---|---|---|
+| `ValidationException` | 400 | `VALIDATION_ERROR` |
+| `ResourceNotFoundException` | 404 | `RESOURCE_NOT_FOUND` |
+| `ConflictException` | 409 | `CONFLICT` |
+| `DataFetchException` | 502 | `DATA_FETCH_ERROR` |
+
+Chưa gắn vào domain thật (Health không có trường hợp tự nhiên để ném notFound/conflict) — đây là
+hierarchy dùng chung, các feature ở Phase 1+ (ví dụ `StockService`) sẽ ném các exception này thay
+vì tự xử lý lỗi riêng lẻ.
 
 ## Chạy frontend (fe/)
 
@@ -85,16 +100,20 @@ npm run build
 ```
 src/
 ├── app/               # app shell (App.tsx)
+├── models/            # type ứng với response/entity từ backend (ví dụ: health.ts)
+├── services/           # gọi API bằng axios (httpClient.ts dùng chung + 1 service/domain)
+│   ├── httpClient.ts
+│   └── healthService.ts
 └── features/
-    └── health/        # gọi GET /api/v1/health, hiển thị trạng thái backend
-        ├── api.ts
-        ├── types.ts
+    └── health/         # component UI, dùng model + service ở trên
         └── HealthCheck.tsx
 ```
 
-Tổ chức theo feature (không theo loại file như `components/`, `hooks/`) — mỗi feature nghiệp vụ
-sau này (giá cổ phiếu, danh mục theo dõi...) sẽ là 1 thư mục con trong `features/`, gói gọn API
-call, type, và component liên quan.
+`models/` và `services/` là 2 tầng dùng chung (song song với `model/`/`dto/` bên backend):
+`models/` định nghĩa shape dữ liệu, `services/` là nơi duy nhất gọi HTTP (qua `httpClient` — 1
+axios instance cấu hình sẵn `baseURL: /api/v1`). Component trong `features/` chỉ gọi service, không
+tự gọi `axios`/`fetch` trực tiếp. `features/` vẫn tổ chức theo nghiệp vụ — feature sau này (giá cổ
+phiếu...) thêm 1 model + 1 service + 1 thư mục con trong `features/`.
 
 ## Tiến độ
 
