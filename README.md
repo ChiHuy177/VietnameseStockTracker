@@ -8,7 +8,7 @@ rộng thành hệ thống phân tích/gợi ý dựa trên dữ liệu lịch s
 ```
 be/       Backend API (Spring Boot, Java 21, Maven)
 fe/       Frontend (React + TypeScript + Vite)
-python/   Data fetching / ML microservice (vnstock)      — thêm ở bước sau
+python/   Data fetching / ML microservice (vnstock)
 ```
 
 Mỗi service là một thư mục độc lập trong cùng một repo, xây dựng và triển khai riêng biệt nhưng
@@ -115,10 +115,23 @@ axios instance cấu hình sẵn `baseURL: /api/v1`). Component trong `features/
 tự gọi `axios`/`fetch` trực tiếp. `features/` vẫn tổ chức theo nghiệp vụ — feature sau này (giá cổ
 phiếu...) thêm 1 model + 1 service + 1 thư mục con trong `features/`.
 
+## Python service (python/)
+
+```bash
+cd python
+python -m venv .venv
+source .venv/Scripts/activate      # Windows Git Bash; PowerShell: .venv\Scripts\Activate.ps1
+pip install -e .
+```
+
+**Scaffold only (Phase 0)** — package `vst_python` chưa có logic fetch dữ liệu. Cấu trúc dùng
+"src layout" (`src/vst_python/`) để tránh nhầm giữa code nguồn và bản đã cài. Phase 1 sẽ thêm
+`vnstock` vào `dependencies` trong `pyproject.toml` và viết fetcher thật.
+
 ## Tiến độ
 
 - [x] Phase 0 — Bước 1: Root + Backend skeleton (health endpoint, exception handling, config profiles)
 - [x] Phase 0 — Bước 2: Docker Compose + TimescaleDB
 - [x] Phase 0 — Bước 3: Frontend scaffold
-- [ ] Phase 0 — Bước 4: Python service scaffold
+- [x] Phase 0 — Bước 4: Python service scaffold
 - [ ] Phase 0 — Bước 5: CI (GitHub Actions)
