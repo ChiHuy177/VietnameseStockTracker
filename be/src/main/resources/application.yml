@@ -3,6 +3,13 @@ spring:
     name: backend
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:vst}
+    username: ${DB_USER:vst}
+    password: ${DB_PASSWORD:vst}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
 
 management:
   endpoints:

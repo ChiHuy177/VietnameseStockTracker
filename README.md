@@ -35,6 +35,20 @@ Chạy test:
 ./mvnw test
 ```
 
+## Database (TimescaleDB qua Docker)
+
+```bash
+cp .env.example .env      # chỉnh giá trị nếu cần
+docker compose up -d db
+```
+
+Backend đọc cấu hình kết nối DB qua biến môi trường (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`,
+`DB_PASSWORD` — xem `.env.example`), migration Flyway trong
+`be/src/main/resources/db/migration/` tự chạy khi backend khởi động.
+
+Xem dữ liệu bằng pgAdmin (hoặc client bất kỳ): kết nối `localhost:5432`, database/user/password lấy
+từ `.env`.
+
 ## Kiến trúc backend
 
 3-tier cổ điển theo package:
@@ -52,7 +66,7 @@ không try/catch rải rác trong controller/service.
 ## Tiến độ
 
 - [x] Phase 0 — Bước 1: Root + Backend skeleton (health endpoint, exception handling, config profiles)
-- [ ] Phase 0 — Bước 2: Docker Compose + TimescaleDB
+- [x] Phase 0 — Bước 2: Docker Compose + TimescaleDB
 - [ ] Phase 0 — Bước 3: Frontend scaffold
 - [ ] Phase 0 — Bước 4: Python service scaffold
 - [ ] Phase 0 — Bước 5: CI (GitHub Actions)
