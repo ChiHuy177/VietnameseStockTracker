@@ -14,5 +14,5 @@ public record VnstockOhlcvDto(
         BigDecimal high,
         BigDecimal low,
         BigDecimal close,
-        long volume) {
+        Long volume) {
 }
