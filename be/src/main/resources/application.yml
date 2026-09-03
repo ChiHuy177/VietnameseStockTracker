@@ -20,6 +20,11 @@ management:
 vnstock:
   base-url: ${VNSTOCK_SERVICE_URL:http://localhost:8000}
 
+ingestion:
+  symbols: ${INGESTION_SYMBOLS:VNM,VCB,FPT}
+  lookback-days: ${INGESTION_LOOKBACK_DAYS:7}
+  cron: ${INGESTION_CRON:0 0 18 * * MON-FRI}
+
 resilience4j:
   retry:
     instances:
