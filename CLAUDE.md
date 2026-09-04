@@ -90,3 +90,49 @@ không giải quyết được.
 - Chưa chọn cơ chế auth cụ thể (JWT? session? OAuth?) — chưa có quyết định, không tự ý chọn khi
   làm việc này.
 - Chưa rõ có cần phân quyền (roles) hay chỉ cần "đăng nhập là đủ" — cần hỏi lại user.
+
+## Việc đang chờ (tính năng + backend) — Trang chủ kiểu Fireant: chỉ số thị trường, treemap ngành, dòng tiền
+
+**Bối cảnh**: user gửi ảnh chụp trang "Thị trường" của Fireant làm tham khảo redesign trang chủ.
+Phần khả thi ngay (watchlist dạng list-card + sparkline) đã làm. Phần dưới đây **cố ý chưa làm** vì
+đòi hỏi nguồn dữ liệu hoàn toàn mới, không phải việc UI đơn thuần — đã trình bày rõ với user và
+được đồng ý hoãn lại.
+
+### 1. Chỉ số thị trường (VNINDEX / HNXINDEX / UPINDEX / VN30)
+
+Project **chưa từng gọi** `vnstock Market.index()` — không có khái niệm "chỉ số" ở bất kỳ đâu
+(khác với "mã cổ phiếu"). Cần làm mới hoàn toàn, theo đúng pattern anti-corruption layer đã dùng:
+1. `python/src/vst_python/fetcher.py` — thêm `fetch_index(symbol, start, end)` gọi
+   `Market().index(...)` (cần research API chính xác của vnstock cho phần này, tên method có thể
+   khác `index`).
+2. `python/src/vst_python/api.py` — thêm `GET /index`.
+3. Backend: DTO/model/mapper/`VnstockClient` method mới, tương tự hệ OHLCV đã có
+   (`VnstockOhlcvDto`/`OhlcvBar`/`OhlcvMapper`) — có thể tái dùng gần như nguyên xi pattern đó vì
+   OHLCV của 1 chỉ số về hình dạng dữ liệu giống hệt OHLCV của 1 mã cổ phiếu.
+4. Cân nhắc: có cần bảng DB riêng (`index_history`) hay tái dùng `price_history_ohlcv` với 1 cách
+   đánh dấu "đây là index, không phải mã"? Cần quyết định trước khi migration.
+
+### 2. Treemap theo ngành (Tài chính, Bất động sản, Vật liệu cơ bản...)
+
+Bảng `stocks` hiện chỉ có `symbol/name/exchange` — **không có phân loại ngành**. vnstock có
+`Listing().industries_icb()` và `Listing().symbols_by_industries()` (đã liệt kê lúc khảo sát thư
+viện, xem lịch sử chat/docs/PROGRESS.md) — chưa từng gọi hay wiring.
+1. Thêm cột `industry`/`icb_code` vào bảng `stocks` (migration mới).
+2. Mở rộng `StockListingSyncService` (job sync định kỳ đã có) để lấy thêm ngành, không chỉ
+   `name`/`exchange` như hiện tại.
+3. Treemap cần % thay đổi giá theo ngành — phụ thuộc mục 3 dưới đây (breadth toàn thị trường).
+
+### 3. Số mã Tăng/Giảm/Không đổi + phân bố dòng tiền toàn thị trường
+
+Cần giá real-time (hoặc ít nhất giá cuối ngày) cho **toàn bộ ~1500 mã**, không chỉ mã trong
+watchlist. Đây là thay đổi phạm vi lớn so với quyết định Phase 3 đã chốt (real-time cố ý giới hạn
+watchlist để tránh vượt rate-limit vnstock — xem phần Phase 3 trong `docs/PROGRESS.md`). Cần bàn
+lại đánh đổi: có thể dùng dữ liệu **cuối ngày** (đọc từ `price_history_ohlcv` đã ingest, không cần
+real-time) cho phần "biến động thị trường" này thay vì đòi real-time toàn thị trường — rẻ hơn nhiều
+về mặt gọi API, hợp lý hơn cho quy mô project. "Dòng tiền" (`total_value` — vnstock đã trả field
+này trong `price-board`, xem `VnstockPriceBoardDto`) là khái niệm riêng, chưa map ở backend.
+
+### Không nằm trong việc này
+
+- Chưa quyết định có làm hay không, chỉ ghi lại hướng đi nếu sau này quyết định làm.
+- Watchlist list-card + sparkline (phần khả thi) đã làm xong, không thuộc phạm vi ghi chú này.
