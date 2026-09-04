@@ -1,28 +1,27 @@
 package com.vst.backend.config;
 
-import com.vst.backend.websocket.PriceBoardWebSocketHandler;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.socket.config.annotation.EnableWebSocket;
-import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
-import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
+import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
+import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
+import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
 /**
- * Raw WebSocket, no STOMP broker — deliberately kept minimal, per the project's Phase 3 decision
- * to skip Kafka/Redis and push updates directly over WebSocket.
+ * STOMP over WebSocket — still no external broker (Kafka/Redis), just Spring's built-in
+ * in-memory simple broker relaying to subscribed clients. Server-push only: no client SEND
+ * destinations are registered, there is nothing for a client to publish yet.
  */
 @Configuration
-@EnableWebSocket
-public class WebSocketConfig implements WebSocketConfigurer {
+@EnableWebSocketMessageBroker
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-    private final PriceBoardWebSocketHandler priceBoardWebSocketHandler;
-
-    public WebSocketConfig(PriceBoardWebSocketHandler priceBoardWebSocketHandler) {
-        this.priceBoardWebSocketHandler = priceBoardWebSocketHandler;
+    @Override
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
+        registry.addEndpoint("/ws").setAllowedOrigins("*");
     }
 
     @Override
-    public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(priceBoardWebSocketHandler, "/ws/price-board")
-                .setAllowedOrigins("*");
+    public void configureMessageBroker(MessageBrokerRegistry registry) {
+        registry.enableSimpleBroker("/topic");
     }
 }
