@@ -8,7 +8,7 @@ Cập nhật mỗi khi đóng xong 1 phase/bước quan trọng.
 
 ```
 be/       Backend API — Spring Boot 3.3.4, Java 21, Maven, 3-tier (controller/service/repository)
-fe/       Frontend — React + TypeScript (strict) + Vite. Mới có scaffold + health check.
+fe/       Frontend — React + TypeScript (strict) + Vite. Trang chủ (search + watchlist + giá real-time).
 python/   Data microservice — FastAPI, wrap thư viện vnstock (data source Việt Nam)
 ```
 
@@ -70,36 +70,56 @@ Xây API layer để client đọc dữ liệu Phase 1 đã nạp, cộng thêm 
 Watchlist add idempotent (upsert, không lỗi khi add trùng); remove phân biệt 2 loại 404 (mã chưa
 từng tồn tại vs. mã tồn tại nhưng không có trong watchlist).
 
-## Phase 3 — Real-time (đang làm, bước 1/? đã xong)
+## Phase 3 — Real-time (backend xong, FE tiêu thụ ở Phase 4)
 
 Mục tiêu: hiển thị giá gần real-time trên FE (kiểu app SSI), theo quyết định gốc đã chốt **không
-dùng Kafka/Redis** — dùng Spring `ApplicationEvent` + WebSocket trực tiếp.
-
-**Bước 1 — Poll giá + broadcast WebSocket (xong, commit `0a150c1`):**
+dùng Kafka/Redis** — dùng Spring messaging + WebSocket trực tiếp.
 
 ```
-watchlist (global) → PriceBoardPollerService [@Scheduled mỗi 5s]
+watchlist (global) → PriceBoardPollerService [@Scheduled mỗi 3s]
   → VnstockClient.fetchPriceBoard(symbols)   [1 call cho cả batch, không loop từng mã]
   → python/ FastAPI GET /price-board          [Trading().price_board(symbols)]
   → PriceQuoteMapper.toDomain()                [anti-corruption]
   → ApplicationEventPublisher.publishEvent(PriceBoardUpdateEvent)
-  → PriceBoardWebSocketHandler.onPriceBoardUpdate()  [@EventListener]
-  → broadcast JSON tới mọi WebSocket session đang mở tại /ws/price-board
+  → PriceBoardBroadcaster.onPriceBoardUpdate()  [@EventListener]
+  → SimpMessagingTemplate.convertAndSend("/topic/price-board", quotes)
+  → mọi client STOMP đã subscribe /topic/price-board nhận được
 ```
 
 - **Phạm vi cố ý giới hạn ở watchlist** (không phải toàn bộ ~1500 mã) — quyết định đã hỏi và chốt
-  với user, để tránh gọi vnstock quá nhiều/rủi ro rate-limit khi poll mỗi 5s.
-- Raw WebSocket (`TextWebSocketHandler`), không STOMP — không có concept "subscribe theo mã", mọi
-  client kết nối đều nhận full broadcast (khớp với watchlist đang là global).
-- Verify e2e thủ công: add VNM vào watchlist, connect WebSocket bằng script Python
-  (`websockets` lib), nhận đúng 3 message cách nhau ~5s.
+  với user, để tránh gọi vnstock quá nhiều/rủi ro rate-limit.
+- **Poll interval 3s** = 20 request/phút tới vnstock — có margin so với quota Community tier
+  (60 req/phút, cần `VNSTOCK_API_KEY` trong `.env`); tính cả OHLCV ingestion job dùng chung key.
+  Guest tier (không có key) chỉ 20 req/phút — sát margin nếu rơi vào tier này, nên luôn set
+  `VNSTOCK_API_KEY`.
+- **STOMP over WebSocket** (đổi từ raw `TextWebSocketHandler` ban đầu, để FE dùng được
+  `@stomp/stompjs` theo đúng stack Phase 4 đã chọn): endpoint bắt tay `/ws`, broker đơn giản
+  in-memory (`@EnableWebSocketMessageBroker`, `enableSimpleBroker("/topic")`), không SockJS.
+  Server-push only, không có destination nào cho client SEND.
 - Unit test: `PriceQuoteMapperTest` (map field, reject null), `PriceBoardPollerServiceTest`
   (watchlist rỗng → không gọi gì; có mã → fetch/map/publish; lỗi fetch → không propagate).
 
-**Còn thiếu để Phase 3 thật sự "xong" theo nghĩa dùng được:**
-- FE chưa tiêu thụ WebSocket này (chưa có UI nào hiển thị) — việc đó thuộc Phase 4.
-- `price_snapshots` hypertable (tạo từ Phase 1) vẫn chưa được dùng để lưu lại lịch sử tick
-  real-time — hiện tại data chỉ broadcast, không persist.
+**Còn thiếu**: `price_snapshots` hypertable (tạo từ Phase 1) vẫn chưa được dùng để lưu lại lịch sử
+tick real-time — hiện tại data chỉ broadcast, không persist.
+
+## Phase 4 — Frontend (đang làm)
+
+**Tooling scaffold**: ESLint (thay `oxlint`, flat config), TanStack Query (`QueryClientProvider`),
+Redux Toolkit (`store.ts`), React Router (`BrowserRouter`), `@stomp/stompjs`, Tailwind v4 + shadcn/ui
+(viết tay theo chuẩn `new-york` — CLI `npx shadcn` bị treo/crash trong môi trường monorepo này),
+`lightweight-charts` (cài, chưa dùng), Vitest + React Testing Library.
+
+**Trang `/` (HomePage)** — duy nhất tính đến hiện tại:
+- `SearchBox` — debounce 300ms, gọi `GET /api/v1/stocks?q=` qua TanStack Query, nút "+ Watchlist"
+  trên mỗi kết quả (mutation, invalidate query watchlist khi thành công)
+- `WatchlistTable` — `GET /api/v1/watchlist` qua TanStack Query, nút "Xóa" (mutation), cột **Giá**
+  đọc real-time từ Redux (`priceBoardSlice`) — `useStompPriceBoard()` (chạy 1 lần ở `App.tsx`)
+  subscribe `/topic/price-board`, dispatch quote mới nhất theo symbol vào store
+- `HealthCheck` (Phase 0) không còn render trong `App.tsx` nữa (route `/` đã có nội dung thật để
+  chứng minh FE↔BE), nhưng file feature vẫn giữ lại
+
+**Còn thiếu**: trang chi tiết mã + chart OHLCV (`lightweight-charts` đã cài, chưa dùng), route nào
+khác ngoài `/`.
 
 ## API đã có (tính đến hiện tại)
 
@@ -112,7 +132,7 @@ watchlist (global) → PriceBoardPollerService [@Scheduled mỗi 5s]
 | GET | `/api/v1/stocks?q=` | 2 |
 | GET / POST | `/api/v1/watchlist` | 2 |
 | DELETE | `/api/v1/watchlist/{symbol}` | 2 |
-| WS | `/ws/price-board` | 3 |
+| STOMP | `/ws` (handshake), topic `/topic/price-board` | 3 |
 
 **Python service (`localhost:8000`, nội bộ — backend gọi, không phải public API)**
 
@@ -127,8 +147,8 @@ vnstock còn nhiều class/API chưa dùng tới (`Company`, `Finance`, `Fundame
 
 ## Kế hoạch từ đây
 
-- **Phase 4 (tiếp theo)**: Frontend — xây feature thật (search, watchlist, chart OHLCV, bảng giá
-  real-time tiêu thụ `/ws/price-board`) theo cấu trúc `features/` đã scaffold ở Phase 0.
+- **Phase 4 (đang làm)**: trang chi tiết mã + chart OHLCV (`lightweight-charts`), thêm route ngoài
+  `/`.
 - **Phase 5 (dự kiến, chưa chi tiết)**: nâng cao chất lượng test — Testcontainers, SonarQube,
   coverage threshold.
 - **Phase 6-7**: chưa có tài liệu chốt chi tiết trong repo (không có `CLAUDE.md`) — cần xác nhận
