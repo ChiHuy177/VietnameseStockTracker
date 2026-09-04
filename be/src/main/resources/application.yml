@@ -28,6 +28,9 @@ ingestion:
 listing-sync:
   cron: ${LISTING_SYNC_CRON:0 0 2 * * *}
 
+price-board:
+  poll-cron: ${PRICE_BOARD_POLL_CRON:*/5 * * * * *}
+
 resilience4j:
   retry:
     instances:

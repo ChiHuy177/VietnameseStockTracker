@@ -15,7 +15,7 @@ if sys.stdout.encoding is None or sys.stdout.encoding.lower() != "utf-8":
 
 from fastapi import FastAPI, HTTPException
 
-from vst_python.fetcher import fetch_listing, fetch_ohlcv
+from vst_python.fetcher import fetch_listing, fetch_ohlcv, fetch_price_board
 
 app = FastAPI(title="vst-python")
 
@@ -36,6 +36,17 @@ def get_ohlcv(symbol: str, start: str, end: str):
 def get_listing():
     try:
         df = fetch_listing()
+    except (Exception, SystemExit) as exc:
+        raise HTTPException(status_code=502, detail=f"vnstock fetch failed: {exc}") from exc
+
+    return df.to_dict(orient="records")
+
+
+@app.get("/price-board")
+def get_price_board(symbols: str):
+    symbol_list = [s.strip() for s in symbols.split(",") if s.strip()]
+    try:
+        df = fetch_price_board(symbol_list)
     except (Exception, SystemExit) as exc:
         raise HTTPException(status_code=502, detail=f"vnstock fetch failed: {exc}") from exc
 

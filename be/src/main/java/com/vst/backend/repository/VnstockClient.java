@@ -2,6 +2,7 @@ package com.vst.backend.repository;
 
 import com.vst.backend.dto.vnstock.VnstockListingItemDto;
 import com.vst.backend.dto.vnstock.VnstockOhlcvDto;
+import com.vst.backend.dto.vnstock.VnstockPriceBoardDto;
 import com.vst.backend.exception.DataFetchException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
@@ -51,6 +52,23 @@ public class VnstockClient {
                     });
         } catch (RestClientException e) {
             throw new DataFetchException("Failed to fetch stock listing from vnstock service", e);
+        }
+    }
+
+    @Retry(name = "vnstock")
+    @CircuitBreaker(name = "vnstock")
+    public List<VnstockPriceBoardDto> fetchPriceBoard(List<String> symbols) {
+        String symbolsCsv = String.join(",", symbols);
+        try {
+            return restClient.get()
+                    .uri(uriBuilder -> uriBuilder.path("/price-board")
+                            .queryParam("symbols", symbolsCsv)
+                            .build())
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<List<VnstockPriceBoardDto>>() {
+                    });
+        } catch (RestClientException e) {
+            throw new DataFetchException("Failed to fetch price board from vnstock service", e);
         }
     }
 }
