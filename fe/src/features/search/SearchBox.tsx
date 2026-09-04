@@ -1,7 +1,9 @@
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useAddToWatchlist } from '@/features/watchlist/useWatchlist';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { Plus, Search } from 'lucide-react';
 import type { ChangeEvent } from 'react';
 import { useState } from 'react';
 import { useSearchStocks } from './useSearchStocks';
@@ -19,8 +21,16 @@ export function SearchBox() {
   const trimmedQuery = query.trim();
 
   return (
-    <div className="flex flex-col gap-2">
-      <Input placeholder="Tìm mã hoặc tên công ty..." value={query} onChange={handleChange} />
+    <div className="flex flex-col gap-3">
+      <div className="relative">
+        <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+        <Input
+          placeholder="Tìm mã hoặc tên công ty..."
+          value={query}
+          onChange={handleChange}
+          className="pl-9"
+        />
+      </div>
 
       {isFetching && <p className="text-muted-foreground text-sm">Đang tìm...</p>}
       {isError && (
@@ -32,22 +42,30 @@ export function SearchBox() {
         <p className="text-muted-foreground text-sm">Không có kết quả.</p>
       )}
 
-      <ul className="flex flex-col gap-1">
-        {results?.map((stock) => (
-          <li key={stock.symbol} className="flex items-center justify-between gap-2 border-b py-1">
-            <span>
-              <strong>{stock.symbol}</strong> — {stock.name} ({stock.exchange})
-            </span>
-            <Button
-              size="sm"
-              onClick={() => addToWatchlist.mutate(stock.symbol)}
-              disabled={addToWatchlist.isPending}
-            >
-              + Watchlist
-            </Button>
-          </li>
-        ))}
-      </ul>
+      {results && results.length > 0 && (
+        <ul className="flex flex-col divide-y">
+          {results.map((stock) => (
+            <li key={stock.symbol} className="flex items-center justify-between gap-2 py-2 first:pt-0 last:pb-0">
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">{stock.symbol}</span>
+                  <Badge variant="secondary">{stock.exchange}</Badge>
+                </div>
+                <span className="text-muted-foreground truncate text-sm">{stock.name}</span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => addToWatchlist.mutate(stock.symbol)}
+                disabled={addToWatchlist.isPending}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Watchlist
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
