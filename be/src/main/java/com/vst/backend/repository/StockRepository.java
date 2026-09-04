@@ -29,6 +29,8 @@ public class StockRepository {
             LIMIT ?
             """;
 
+    private static final String FIND_ALL_SYMBOLS_SQL = "SELECT symbol FROM stocks ORDER BY symbol";
+
     private final JdbcTemplate jdbcTemplate;
 
     public StockRepository(JdbcTemplate jdbcTemplate) {
@@ -63,5 +65,10 @@ public class StockRepository {
         return jdbcTemplate.query(SEARCH_SQL,
                 (rs, rowNum) -> new StockListing(rs.getString("symbol"), rs.getString("name"), rs.getString("exchange")),
                 pattern, pattern, limit);
+    }
+
+    /** Every symbol currently known (populated by the listing sync job). Used by full-catalog ingestion. */
+    public List<String> findAllSymbols() {
+        return jdbcTemplate.query(FIND_ALL_SYMBOLS_SQL, (rs, rowNum) -> rs.getString("symbol"));
     }
 }

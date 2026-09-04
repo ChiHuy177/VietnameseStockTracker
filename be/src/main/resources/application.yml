@@ -6,7 +6,7 @@ spring:
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:vst}
     username: ${DB_USER:vst}
-    password: ${DB_PASSWORD:vst}
+    password: changeme
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -22,6 +22,7 @@ vnstock:
 
 ingestion:
   symbols: ${INGESTION_SYMBOLS:VNM,VCB,FPT}
+  all-symbols: ${INGESTION_ALL_SYMBOLS:false}
   lookback-days: ${INGESTION_LOOKBACK_DAYS:7}
   cron: ${INGESTION_CRON:0 0 18 * * MON-FRI}
 
@@ -29,7 +30,7 @@ listing-sync:
   cron: ${LISTING_SYNC_CRON:0 0 2 * * *}
 
 price-board:
-  poll-cron: ${PRICE_BOARD_POLL_CRON:*/5 * * * * *}
+  poll-cron: ${PRICE_BOARD_POLL_CRON:*/3 * * * * *}
 
 resilience4j:
   retry:

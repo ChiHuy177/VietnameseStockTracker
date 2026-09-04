@@ -15,9 +15,10 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 /**
- * Periodically fetches OHLCV data (via {@link VnstockClient}) for a fixed watchlist and upserts
- * it into {@code price_history_ohlcv}. One symbol failing does not stop the others — this method
- * runs outside any HTTP request, so GlobalExceptionHandler never sees exceptions thrown here.
+ * Periodically fetches OHLCV data (via {@link VnstockClient}) for either a fixed watchlist or
+ * every known symbol, and upserts it into {@code price_history_ohlcv}. One symbol failing does
+ * not stop the others — this method runs outside any HTTP request, so GlobalExceptionHandler
+ * never sees exceptions thrown here.
  */
 @Service
 public class OhlcvIngestionService {
@@ -28,7 +29,8 @@ public class OhlcvIngestionService {
     private final OhlcvMapper mapper;
     private final StockRepository stockRepository;
     private final PriceHistoryRepository priceHistoryRepository;
-    private final List<String> symbols;
+    private final List<String> configuredSymbols;
+    private final boolean allSymbols;
     private final long lookbackDays;
 
     public OhlcvIngestionService(
@@ -37,12 +39,14 @@ public class OhlcvIngestionService {
             StockRepository stockRepository,
             PriceHistoryRepository priceHistoryRepository,
             @Value("${ingestion.symbols}") String symbolsCsv,
+            @Value("${ingestion.all-symbols}") boolean allSymbols,
             @Value("${ingestion.lookback-days}") long lookbackDays) {
         this.vnstockClient = vnstockClient;
         this.mapper = mapper;
         this.stockRepository = stockRepository;
         this.priceHistoryRepository = priceHistoryRepository;
-        this.symbols = List.of(symbolsCsv.split(","));
+        this.configuredSymbols = List.of(symbolsCsv.split(","));
+        this.allSymbols = allSymbols;
         this.lookbackDays = lookbackDays;
     }
 
@@ -51,6 +55,9 @@ public class OhlcvIngestionService {
         LocalDate end = LocalDate.now();
         LocalDate start = end.minusDays(lookbackDays);
 
+        List<String> symbols = allSymbols ? stockRepository.findAllSymbols() : configuredSymbols;
+        log.info("Starting OHLCV ingestion for {} symbols (allSymbols={})", symbols.size(), allSymbols);
+
         for (String symbol : symbols) {
             try {
                 ingestOne(symbol.strip(), start, end);
@@ -58,6 +65,8 @@ public class OhlcvIngestionService {
                 log.error("Ingestion failed for symbol {}", symbol, e);
             }
         }
+
+        log.info("OHLCV ingestion cycle complete: {} symbols processed", symbols.size());
     }
 
     private void ingestOne(String symbol, LocalDate start, LocalDate end) {
