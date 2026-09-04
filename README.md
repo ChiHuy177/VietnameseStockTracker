@@ -136,8 +136,12 @@ Chưa có bước deploy — CI hiện tại chỉ để bắt lỗi build/test 
 
 ## Tiến độ
 
-- [x] Phase 0 — Bước 1: Root + Backend skeleton (health endpoint, exception handling, config profiles)
-- [x] Phase 0 — Bước 2: Docker Compose + TimescaleDB
-- [x] Phase 0 — Bước 3: Frontend scaffold
-- [x] Phase 0 — Bước 4: Python service scaffold
-- [x] Phase 0 — Bước 5: CI (GitHub Actions)
+Chi tiết đầy đủ (kiến trúc, luồng dữ liệu, API đã có) xem [docs/PROGRESS.md](docs/PROGRESS.md).
+
+- [x] Phase 0 — Nền tảng: backend skeleton, Docker Compose + TimescaleDB, frontend scaffold,
+      Python service scaffold, CI
+- [x] Phase 1 — Ingest OHLCV: fetch từ vnstock, anti-corruption layer, scheduled ingestion job
+- [x] Phase 2 — Backend API: Swagger, đọc lịch sử OHLCV, search mã, watchlist CRUD (global)
+- [ ] Phase 3 — Real-time: bước 1 (poll price board watchlist + broadcast WebSocket) xong;
+      FE tiêu thụ WebSocket và lưu snapshot lịch sử còn thiếu
+- [ ] Phase 4 — Frontend: chưa bắt đầu (mới có scaffold + health check)
