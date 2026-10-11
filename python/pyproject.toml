@@ -2,17 +2,24 @@
 name = "vst-python"
 version = "0.1.0"
 description = "Vietnamese Stock Tracker - data fetching / ML microservice (vnstock)"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.14"
 dependencies = [
     "vnstock",
     "fastapi",
-    "uvicorn[standard]",
-    # numpy<2.4 hits "OverflowError: cannot convert longdouble infinity to integer" on
-    # import under Python 3.14 on Windows (a numpy bug, fixed by 2.5.x). vnstock's own
-    # dependency (vnstock-ezchart) declares numpy<2.3, but it's unused by this service
-    # (we never touch vnstock's charting submodule) so overriding the floor here is safe.
-    "numpy>=2.4",
+    "uvicorn",
+    # uvicorn's "standard" extra pulls in PyYAML, which as of PyYAML 6.0.3 ships no
+    # Windows wheel for Python 3.14 and fails to build from source (Cython/setuptools
+    # incompatibility, unrelated to this project). We only use --env-file (needs
+    # python-dotenv) and --reload (uvicorn's built-in statreload works without
+    # watchfiles), so skip the extras and depend on python-dotenv directly instead.
+    "python-dotenv",
 ]
+# numpy<2.4 hits "OverflowError: cannot convert longdouble infinity to integer" on import
+# under Python 3.14 on Windows (a numpy bug, fixed by 2.5.x). vnstock's own dependency
+# (vnstock-ezchart) hard-pins numpy<2.3, which pip cannot reconcile with a numpy>=2.4 floor
+# (no numpy version satisfies both) - overriding the floor is not actually possible via pip.
+# So instead we cap requires-python below 3.14 above, and let numpy resolve to whatever
+# vnstock-ezchart wants; don't add an explicit numpy pin here.
 
 [build-system]
 requires = ["hatchling"]
