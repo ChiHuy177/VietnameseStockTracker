@@ -2,9 +2,9 @@ import { useAppSelector } from '@/app/hooks';
 import { Minus, TrendingDown, TrendingUp } from 'lucide-react';
 import { selectQuote } from './priceBoardSlice';
 
-const CEILING_COLOR = 'text-fuchsia-600';
-const FLOOR_COLOR = 'text-blue-600';
-const REFERENCE_COLOR = 'text-yellow-600';
+const CEILING_COLOR = 'text-ceiling';
+const FLOOR_COLOR = 'text-floor';
+const REFERENCE_COLOR = 'text-ref';
 
 function formatNumber(value: number | undefined): string {
   return value !== undefined ? value.toLocaleString('vi-VN') : '—';
@@ -42,7 +42,7 @@ export function PriceBoardPanel({ symbol }: { symbol: string }) {
 
   const isUp = quote.change > 0;
   const isDown = quote.change < 0;
-  const changeColor = isUp ? 'text-green-600' : isDown ? 'text-red-600' : 'text-muted-foreground';
+  const changeColor = isUp ? 'text-up' : isDown ? 'text-down' : 'text-muted-foreground';
   const sign = quote.change > 0 ? '+' : '';
   const Icon = isUp ? TrendingUp : isDown ? TrendingDown : Minus;
 
@@ -63,19 +63,19 @@ export function PriceBoardPanel({ symbol }: { symbol: string }) {
           label="Trần"
           value={formatNumber(quote.ceilingPrice)}
           colorClass={CEILING_COLOR}
-          bgClass="bg-fuchsia-500/10"
+          bgClass="bg-ceiling-soft"
         />
         <StatTile
           label="Sàn"
           value={formatNumber(quote.floorPrice)}
           colorClass={FLOOR_COLOR}
-          bgClass="bg-blue-500/10"
+          bgClass="bg-floor-soft"
         />
         <StatTile
           label="Tham chiếu"
           value={formatNumber(quote.referencePrice)}
           colorClass={REFERENCE_COLOR}
-          bgClass="bg-yellow-500/10"
+          bgClass="bg-ref-soft"
         />
       </div>
 

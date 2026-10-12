@@ -18,8 +18,8 @@ describe('toCandlestickData', () => {
 });
 
 describe('toVolumeData', () => {
-  it('colors up bars (close >= open) green and down bars red', () => {
-    const result = toVolumeData(bars);
+  it('colors up bars (close >= open) with upColor and down bars with downColor', () => {
+    const result = toVolumeData(bars, '#16a34a', '#dc2626');
 
     expect(result[0]).toMatchObject({ value: 1000, color: '#16a34a' });
     expect(result[1]).toMatchObject({ value: 800, color: '#dc2626' });

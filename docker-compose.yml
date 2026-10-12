@@ -1,3 +1,6 @@
+# Port mapping "HOST:CONTAINER": the left side is the port on your machine and is
+# configurable via .env; the right side is fixed and is what services use to reach
+# each other inside the Docker network (db:5432, python:8000, be:8080).
 services:
   db:
     image: timescale/timescaledb:latest-pg16
@@ -16,6 +19,46 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  python:
+    build: ./python
+    container_name: vst-python
+    restart: unless-stopped
+    environment:
+      VNSTOCK_API_KEY: ${VNSTOCK_API_KEY:-}
+    ports:
+      - "${PYTHON_PORT:-8000}:8000"
+
+  be:
+    build: ./be
+    container_name: vst-be
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      python:
+        condition: service_started
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      # Inside the Docker network: always the service name + container port,
+      # regardless of DB_HOST/DB_PORT in .env (those are for running the backend by hand).
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-vst}
+      DB_USER: ${POSTGRES_USER:-vst}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-vst}
+      VNSTOCK_SERVICE_URL: http://python:8000
+    ports:
+      - "${BE_PORT:-8080}:8080"
+
+  fe:
+    build: ./fe
+    container_name: vst-fe
+    restart: unless-stopped
+    depends_on:
+      - be
+    ports:
+      - "${FE_PORT:-3000}:80"
 
 volumes:
   db-data:

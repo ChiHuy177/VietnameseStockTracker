@@ -16,8 +16,8 @@ function WatchlistRow({ item }: { item: WatchlistItem }) {
 
   const isUp = quote !== undefined && quote.change > 0;
   const isDown = quote !== undefined && quote.change < 0;
-  const colorClass = isUp ? 'text-green-600' : isDown ? 'text-red-600' : 'text-muted-foreground';
-  const sparklineColor = isUp ? 'stroke-green-500' : isDown ? 'stroke-red-500' : 'stroke-muted-foreground';
+  const colorClass = isUp ? 'text-up' : isDown ? 'text-down' : 'text-muted-foreground';
+  const sparklineColor = isUp ? 'stroke-up' : isDown ? 'stroke-down' : 'stroke-muted-foreground';
   const sign = quote && quote.percentChange > 0 ? '+' : '';
   const Icon = isUp ? TrendingUp : isDown ? TrendingDown : Minus;
 

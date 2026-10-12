@@ -7,11 +7,19 @@ export function OhlcvChart({ bars }: { bars: OhlcvBar[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
+  const colorsRef = useRef({ upColor: '', downColor: '' });
 
   useEffect(() => {
     if (!containerRef.current) {
       return;
     }
+
+    // lightweight-charts draws to <canvas>, so it can't consume Tailwind utility classes like
+    // the rest of the app — read the raw token values once at mount instead.
+    const rootStyle = getComputedStyle(document.documentElement);
+    const upColor = rootStyle.getPropertyValue('--up').trim();
+    const downColor = rootStyle.getPropertyValue('--down').trim();
+    colorsRef.current = { upColor, downColor };
 
     const chart = createChart(containerRef.current, {
       autoSize: true,
@@ -20,11 +28,11 @@ export function OhlcvChart({ bars }: { bars: OhlcvBar[] }) {
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: '#16a34a',
-      downColor: '#dc2626',
+      upColor,
+      downColor,
       borderVisible: false,
-      wickUpColor: '#16a34a',
-      wickDownColor: '#dc2626',
+      wickUpColor: upColor,
+      wickDownColor: downColor,
     });
     candleSeries.priceScale().applyOptions({ scaleMargins: { top: 0.1, bottom: 0.35 } });
     candleSeriesRef.current = candleSeries;
@@ -44,8 +52,9 @@ export function OhlcvChart({ bars }: { bars: OhlcvBar[] }) {
   }, []);
 
   useEffect(() => {
+    const { upColor, downColor } = colorsRef.current;
     candleSeriesRef.current?.setData(toCandlestickData(bars));
-    volumeSeriesRef.current?.setData(toVolumeData(bars));
+    volumeSeriesRef.current?.setData(toVolumeData(bars, upColor, downColor));
   }, [bars]);
 
   return <div ref={containerRef} className="h-80 w-full" />;

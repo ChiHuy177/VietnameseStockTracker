@@ -12,8 +12,12 @@ theo lịch, ghi vào TimescaleDB để backend (`be/`) đọc và phục vụ q
 cd python
 python -m venv .venv
 source .venv/Scripts/activate      # Windows Git Bash; PowerShell: .venv\Scripts\Activate.ps1
-pip install -e .
+pip install -e . --extra-index-url https://vnstocks.com/api/simple
 ```
+
+`vnstock`/`vnai` không còn file cài trên PyPI (trang project vẫn có nhưng trống) — phải thêm
+`--extra-index-url` trỏ tới index riêng của vnstocks, theo đúng hướng dẫn cài chính thức của họ.
+`python/Dockerfile` đã đặt sẵn qua biến `PIP_EXTRA_INDEX_URL`.
 
 `pip install -e .` cài package này ở chế độ **editable** (tương đương `npm link` hoặc chạy trực
 tiếp từ source thay vì build artifact) — sửa code trong `src/` có hiệu lực ngay, không cần cài lại.

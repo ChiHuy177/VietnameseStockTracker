@@ -43,6 +43,24 @@ public class VnstockClient {
 
     @Retry(name = "vnstock")
     @CircuitBreaker(name = "vnstock")
+    public List<VnstockOhlcvDto> fetchIndexOhlcv(String symbol, String start, String end) {
+        try {
+            return restClient.get()
+                    .uri(uriBuilder -> uriBuilder.path("/index-ohlcv")
+                            .queryParam("symbol", symbol)
+                            .queryParam("start", start)
+                            .queryParam("end", end)
+                            .build())
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<List<VnstockOhlcvDto>>() {
+                    });
+        } catch (RestClientException e) {
+            throw new DataFetchException("Failed to fetch index OHLCV for " + symbol + " from vnstock service", e);
+        }
+    }
+
+    @Retry(name = "vnstock")
+    @CircuitBreaker(name = "vnstock")
     public List<VnstockListingItemDto> fetchListing() {
         try {
             return restClient.get()

@@ -132,7 +132,34 @@ real-time) cho phần "biến động thị trường" này thay vì đòi real-
 về mặt gọi API, hợp lý hơn cho quy mô project. "Dòng tiền" (`total_value` — vnstock đã trả field
 này trong `price-board`, xem `VnstockPriceBoardDto`) là khái niệm riêng, chưa map ở backend.
 
+### FE mock UI đã xong — hợp đồng field cho backend
+
+User đã duyệt 1 bản mockup thiết kế (theme trading-terminal tối + font Barlow Condensed/IBM Plex
+Mono) và chốt: làm FE trước với **mock data cứng** cho cả 3 phần trên, BE làm sau — xem
+[fe/src/features/marketOverview/](fe/src/features/marketOverview/). Đây **không phải** quyết định
+bật đèn xanh làm BE, chỉ là ghi lại hợp đồng field để khi làm BE thật thì khớp đúng shape FE đã
+dựng, khỏi phải đổi FE lần 2:
+
+- `IndexTicker.tsx` dùng `IndexQuote { symbol; name; value; change; percentChange; time }`
+  (`fe/src/models/marketIndex.ts`) ↔ mục 1 — 1 `GET /index` trả về nên là `IndexQuote[]`; sparkline
+  lịch sử nên là endpoint OHLCV riêng (giống `fetch_ohlcv`/`GET /ohlcv` hiện có), không nhúng inline
+  trong `IndexQuote`.
+- `SectorTreemap.tsx`/`SectorMoneyFlow.tsx` dùng chung `SectorSnapshot { code; name;
+  marketCapWeight; percentChange; moneyFlow }` (`fe/src/models/sector.ts`) ↔ mục 2 và 3 —
+  `code`/`name` map tới cột `industry`/`icb_code` sẽ thêm ở mục 2; `moneyFlow` map tới field
+  `total_value` đã có sẵn trong `VnstockPriceBoardDto` nhưng chưa map, nói ở mục 3.
+- `MarketBreadthBar.tsx` dùng `MarketBreadthSnapshot { advancing; declining; unchanged; ceiling;
+  floor; time }` (`fe/src/models/marketBreadth.ts`) ↔ mục 3 — đánh đổi EOD-vs-realtime đã ghi ở
+  trên áp dụng trực tiếp cho field này.
+- Các hàm mock (`getMarketIndices`, `getMarketBreadth`, `getSectorTreemap`, `getSectorMoneyFlow` ở
+  `fe/src/features/marketOverview/marketOverviewMockData.ts`) hiện là hàm **đồng bộ** trả hằng số —
+  nối BE thật sau này là việc sửa phía gọi (bọc `useQuery`), không phải chỉ đổi nội dung 1 file.
+- Màu semantic trần/sàn/tham chiếu/tăng/giảm đã được gom thành token CSS (`--up/--down/--ceiling/
+  --floor/--ref` trong `fe/src/index.css`) thay vì hardcode rời rạc như trước — nếu sau này thêm
+  UI mới liên quan tới các khái niệm này, dùng lại token, không tạo màu hardcode mới.
+
 ### Không nằm trong việc này
 
-- Chưa quyết định có làm hay không, chỉ ghi lại hướng đi nếu sau này quyết định làm.
+- Chưa quyết định có làm BE hay không, chỉ ghi lại hướng đi + hợp đồng field FE nếu sau này quyết
+  định làm.
 - Watchlist list-card + sparkline (phần khả thi) đã làm xong, không thuộc phạm vi ghi chú này.

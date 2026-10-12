@@ -31,6 +31,14 @@ public class PriceHistoryRepository {
             ORDER BY time
             """;
 
+    private static final String FIND_LATEST_TWO_SQL = """
+            SELECT stock_id, time, interval, open, high, low, close, volume, source
+            FROM price_history_ohlcv
+            WHERE stock_id = ?
+            ORDER BY time DESC
+            LIMIT 2
+            """;
+
     private final JdbcTemplate jdbcTemplate;
 
     public PriceHistoryRepository(JdbcTemplate jdbcTemplate) {
@@ -68,5 +76,20 @@ public class PriceHistoryRepository {
                 rs.getLong("volume"),
                 rs.getString("source")),
                 stockId, from, to);
+    }
+
+    /** Most recent bar first — i.e. {@code [0]} is latest, {@code [1]} is the one before it (if present). */
+    public List<OhlcvBar> findLatestTwoBars(long stockId) {
+        return jdbcTemplate.query(FIND_LATEST_TWO_SQL, (rs, rowNum) -> new OhlcvBar(
+                rs.getLong("stock_id"),
+                rs.getTimestamp("time").toInstant(),
+                rs.getString("interval"),
+                rs.getBigDecimal("open"),
+                rs.getBigDecimal("high"),
+                rs.getBigDecimal("low"),
+                rs.getBigDecimal("close"),
+                rs.getLong("volume"),
+                rs.getString("source")),
+                stockId);
     }
 }

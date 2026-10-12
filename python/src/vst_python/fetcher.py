@@ -23,6 +23,19 @@ def fetch_ohlcv(symbol: str, start: str, end: str):
     return _market.equity(symbol).ohlcv(start=start, end=end)
 
 
+def fetch_index_ohlcv(symbol: str, start: str, end: str):
+    """Fetch daily OHLCV history for one market index.
+
+    symbol: "VNINDEX", "VN30", "HNXINDEX", hoặc "UPCOMINDEX" (không gạch ngang).
+    start, end: định dạng "YYYY-MM-DD"
+
+    Trả về pandas.DataFrame với các cột: time, open, high, low, close, volume —
+    giống hệt fetch_ohlcv (vnstock không có API lấy giá trị chỉ số hiện tại riêng,
+    chỉ có lịch sử OHLCV; "giá trị hiện tại" phải tính từ bar gần nhất ở tầng gọi).
+    """
+    return _market.index(symbol).ohlcv(start=start, end=end)
+
+
 def fetch_listing():
     """Fetch toàn bộ danh sách mã cổ phiếu (không gồm cw/fund/future/bond) kèm tên công ty và sàn.
 

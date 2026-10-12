@@ -29,7 +29,12 @@ public class StockRepository {
             LIMIT ?
             """;
 
-    private static final String FIND_ALL_SYMBOLS_SQL = "SELECT symbol FROM stocks ORDER BY symbol";
+    private static final String FIND_ALL_SYMBOLS_SQL = "SELECT symbol FROM stocks WHERE kind = 'STOCK' ORDER BY symbol";
+
+    private static final String FIND_INDEX_SYMBOLS_SQL = "SELECT symbol FROM stocks WHERE kind = 'INDEX' ORDER BY symbol";
+
+    private static final String FIND_INDICES_SQL =
+            "SELECT symbol, name, exchange FROM stocks WHERE kind = 'INDEX' ORDER BY symbol";
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -67,8 +72,19 @@ public class StockRepository {
                 pattern, pattern, limit);
     }
 
-    /** Every symbol currently known (populated by the listing sync job). Used by full-catalog ingestion. */
+    /** Every tradeable stock symbol (excludes indices). Used by full-catalog ingestion. */
     public List<String> findAllSymbols() {
         return jdbcTemplate.query(FIND_ALL_SYMBOLS_SQL, (rs, rowNum) -> rs.getString("symbol"));
+    }
+
+    /** The 4 market index symbols (VNINDEX/VN30/HNX-INDEX/UPCOM-INDEX). Used by index ingestion. */
+    public List<String> findIndexSymbols() {
+        return jdbcTemplate.query(FIND_INDEX_SYMBOLS_SQL, (rs, rowNum) -> rs.getString("symbol"));
+    }
+
+    /** The 4 market indices with their display name/exchange. Used by the current-quote endpoint. */
+    public List<StockListing> findIndices() {
+        return jdbcTemplate.query(FIND_INDICES_SQL,
+                (rs, rowNum) -> new StockListing(rs.getString("symbol"), rs.getString("name"), rs.getString("exchange")));
     }
 }

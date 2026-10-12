@@ -26,6 +26,10 @@ ingestion:
   lookback-days: ${INGESTION_LOOKBACK_DAYS:7}
   cron: ${INGESTION_CRON:0 0 18 * * MON-FRI}
 
+index-ingestion:
+  lookback-days: ${INDEX_INGESTION_LOOKBACK_DAYS:7}
+  cron: ${INDEX_INGESTION_CRON:0 10 18 * * MON-FRI}
+
 listing-sync:
   cron: ${LISTING_SYNC_CRON:0 0 2 * * *}
 
