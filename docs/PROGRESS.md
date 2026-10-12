@@ -109,17 +109,30 @@ Redux Toolkit (`store.ts`), React Router (`BrowserRouter`), `@stomp/stompjs`, Ta
 (viết tay theo chuẩn `new-york` — CLI `npx shadcn` bị treo/crash trong môi trường monorepo này),
 `lightweight-charts` (cài, chưa dùng), Vitest + React Testing Library.
 
-**Trang `/` (HomePage)** — duy nhất tính đến hiện tại:
+**Trang `/` (HomePage)**:
 - `SearchBox` — debounce 300ms, gọi `GET /api/v1/stocks?q=` qua TanStack Query, nút "+ Watchlist"
   trên mỗi kết quả (mutation, invalidate query watchlist khi thành công)
 - `WatchlistTable` — `GET /api/v1/watchlist` qua TanStack Query, nút "Xóa" (mutation), cột **Giá**
   đọc real-time từ Redux (`priceBoardSlice`) — `useStompPriceBoard()` (chạy 1 lần ở `App.tsx`)
   subscribe `/topic/price-board`, dispatch quote mới nhất theo symbol vào store
+- `IndexTicker` (`features/marketOverview/`) — 4 chỉ số VNINDEX/VN30/HNXINDEX/UPCOMINDEX từ
+  `GET /api/v1/indices` qua TanStack Query (`useMarketIndices`), sparkline 30 ngày từ
+  `GET /api/v1/indices/{symbol}/ohlcv` (`useIndexSparkline`)
+- `MarketBreadthBar`/`SectorTreemap`/`SectorMoneyFlow` — **vẫn dùng mock data cứng**
+  (`marketOverviewMockData.ts`), chưa có backend (xem `CLAUDE.md`, mục "Trang chủ kiểu Fireant")
 - `HealthCheck` (Phase 0) không còn render trong `App.tsx` nữa (route `/` đã có nội dung thật để
   chứng minh FE↔BE), nhưng file feature vẫn giữ lại
 
-**Còn thiếu**: trang chi tiết mã + chart OHLCV (`lightweight-charts` đã cài, chưa dùng), route nào
-khác ngoài `/`.
+**Trang `/stocks/{symbol}` (StockDetailPage, lazy-load)**: chart OHLCV
+(`lightweight-charts`) + `PriceBoardPanel` kiểu SSI iBoard (trần/sàn/tham chiếu + bảng mua/bán 3
+mức + room ngoại). Panel đang hiện "—"/ẩn phần bid/ask vì backend chưa map các field đó — xem
+`CLAUDE.md`, mục đầu tiên.
+
+**Theme**: trading-terminal tối (navy/gold) + font Barlow Condensed/IBM Plex Mono, màu semantic
+trần/sàn/tham chiếu/tăng/giảm là token CSS (`--up/--down/--ceiling/--floor/--ref` trong `index.css`).
+
+**Docker**: cả 4 service (`db`/`python`/`be`/`fe`) chạy được bằng `docker compose up` — FE build ra
+static rồi serve qua nginx, nginx proxy `/api/` và `/ws` (có Upgrade header) sang backend.
 
 ## API đã có (tính đến hiện tại)
 
@@ -133,6 +146,8 @@ khác ngoài `/`.
 | GET / POST | `/api/v1/watchlist` | 2 |
 | DELETE | `/api/v1/watchlist/{symbol}` | 2 |
 | STOMP | `/ws` (handshake), topic `/topic/price-board` | 3 |
+| GET | `/api/v1/indices` | 4 |
+| GET | `/api/v1/indices/{symbol}/ohlcv?start=&end=` | 4 |
 
 **Python service (`localhost:8000`, nội bộ — backend gọi, không phải public API)**
 
@@ -141,18 +156,22 @@ khác ngoài `/`.
 | GET | `/ohlcv?symbol=&start=&end=` | 1 | `Market().equity(symbol).ohlcv()` |
 | GET | `/listing` | 2 | `Listing().symbols_by_exchange()` |
 | GET | `/price-board?symbols=` | 3 | `Trading().price_board(symbols)` |
+| GET | `/index-ohlcv?symbol=&start=&end=` | 4 | `Market().index(symbol).ohlcv()` |
 
 vnstock còn nhiều class/API chưa dùng tới (`Company`, `Finance`, `Fundamental`, `Quote.intraday`,
 `Fund`...) — tiềm năng cho phần "advisory" (phân tích cơ bản) ở các phase sau.
 
 ## Kế hoạch từ đây
 
-- **Phase 4 (đang làm)**: trang chi tiết mã + chart OHLCV (`lightweight-charts`), thêm route ngoài
-  `/`.
+- **Phase 4 (đang làm)**: trang chủ + trang chi tiết mã + chart OHLCV đã xong. Còn lại trên FE là
+  2 widget đang dùng mock (độ rộng thị trường, ngành/dòng tiền) — chờ backend, xem `CLAUDE.md`.
+- **Việc đang chờ cụ thể** (có ghi chi tiết trong `CLAUDE.md`): mở rộng `PriceQuote` (trần/sàn/tham
+  chiếu + bid/ask 3 mức + room ngoại) cho `PriceBoardPanel`; sửa `GET /api/v1/indices` đang trả 404
+  cho cả list khi 1 chỉ số chưa có dữ liệu; multi-user/auth cho watchlist.
 - **Phase 5 (dự kiến, chưa chi tiết)**: nâng cao chất lượng test — Testcontainers, SonarQube,
   coverage threshold.
-- **Phase 6-7**: chưa có tài liệu chốt chi tiết trong repo (không có `CLAUDE.md`) — cần xác nhận
-  lại với chủ dự án khi tới lúc.
+- **Phase 6-7**: chưa có tài liệu chốt chi tiết — xem `CLAUDE.md` cho các việc đang chờ, cần xác
+  nhận lại với chủ dự án khi tới lúc.
 
 ## Cách chạy full stack (dev)
 

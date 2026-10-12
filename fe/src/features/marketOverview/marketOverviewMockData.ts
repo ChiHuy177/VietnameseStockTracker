@@ -1,26 +1,14 @@
-// Dữ liệu minh họa (mock) — chưa có endpoint backend nào cho chỉ số/ngành/độ rộng thị trường
-// (xem CLAUDE.md, mục "Trang chủ kiểu Fireant"). Các hàm accessor dưới đây trả đồng bộ, không
-// phải Promise — khi nối API thật, phía gọi (component) cần đổi sang useQuery, không chỉ đổi
-// nội dung hàm này.
+// Dữ liệu minh họa (mock) cho độ rộng thị trường + ngành — chưa có endpoint backend nào cho 2 phần
+// này (xem CLAUDE.md, mục "Trang chủ kiểu Fireant", việc 2 và 3: cần sync ngành ICB + snapshot giá
+// toàn thị trường). Các hàm accessor dưới đây trả đồng bộ, không phải Promise — khi nối API thật,
+// phía gọi (component) cần đổi sang useQuery, không chỉ đổi nội dung hàm này.
+//
+// Phần chỉ số thị trường đã có backend thật và KHÔNG còn mock ở đây — xem
+// `useMarketIndices`/`useIndexSparkline`.
 import type { MarketBreadthSnapshot } from '@/models/marketBreadth';
-import type { IndexQuote } from '@/models/marketIndex';
 import type { SectorSnapshot } from '@/models/sector';
 
 const SNAPSHOT_TIME = '2026-10-11T03:32:15Z';
-
-const INDICES: IndexQuote[] = [
-  { symbol: 'VNINDEX', name: 'VN-INDEX', value: 1258.47, change: 9.82, percentChange: 0.79, time: SNAPSHOT_TIME },
-  { symbol: 'VN30', name: 'VN30', value: 1331.92, change: 6.15, percentChange: 0.47, time: SNAPSHOT_TIME },
-  { symbol: 'HNXINDEX', name: 'HNX-INDEX', value: 238.64, change: -1.12, percentChange: -0.47, time: SNAPSHOT_TIME },
-  { symbol: 'UPCOMINDEX', name: 'UPCOM-INDEX', value: 92.85, change: 0.18, percentChange: 0.19, time: SNAPSHOT_TIME },
-];
-
-const INDEX_SPARKLINES: Record<string, number[]> = {
-  VNINDEX: [1231, 1236, 1229, 1241, 1238, 1247, 1244, 1252, 1249, 1258],
-  VN30: [1312, 1318, 1309, 1322, 1319, 1325, 1321, 1328, 1326, 1332],
-  HNXINDEX: [241, 240, 242, 239, 240, 238, 239, 237, 238, 239],
-  UPCOMINDEX: [92.1, 92.3, 92.0, 92.5, 92.4, 92.6, 92.5, 92.7, 92.6, 92.9],
-};
 
 const BREADTH: MarketBreadthSnapshot = {
   advancing: 412,
@@ -50,14 +38,6 @@ const SECTORS: SectorSnapshot[] = [
 ];
 
 const MONEY_FLOW_SECTOR_CODES = ['NH', 'CNTT', 'THEP', 'CK', 'BL', 'HC', 'XD', 'DK', 'BDS'];
-
-export function getMarketIndices(): IndexQuote[] {
-  return INDICES;
-}
-
-export function getIndexSparkline(symbol: string): number[] {
-  return INDEX_SPARKLINES[symbol] ?? [];
-}
 
 export function getMarketBreadth(): MarketBreadthSnapshot {
   return BREADTH;

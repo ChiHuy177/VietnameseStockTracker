@@ -94,23 +94,33 @@ không giải quyết được.
 ## Việc đang chờ (tính năng + backend) — Trang chủ kiểu Fireant: chỉ số thị trường, treemap ngành, dòng tiền
 
 **Bối cảnh**: user gửi ảnh chụp trang "Thị trường" của Fireant làm tham khảo redesign trang chủ.
-Phần khả thi ngay (watchlist dạng list-card + sparkline) đã làm. Phần dưới đây **cố ý chưa làm** vì
-đòi hỏi nguồn dữ liệu hoàn toàn mới, không phải việc UI đơn thuần — đã trình bày rõ với user và
-được đồng ý hoãn lại.
+Phần khả thi ngay (watchlist dạng list-card + sparkline) đã làm. Mục 1 (chỉ số thị trường) **đã làm
+xong** cả BE lẫn FE. Mục 2 và 3 dưới đây vẫn **cố ý chưa làm** vì đòi hỏi nguồn dữ liệu hoàn toàn
+mới, không phải việc UI đơn thuần — đã trình bày rõ với user và được đồng ý hoãn lại.
 
-### 1. Chỉ số thị trường (VNINDEX / HNXINDEX / UPINDEX / VN30)
+### 1. Chỉ số thị trường (VNINDEX / HNXINDEX / UPCOMINDEX / VN30) — ĐÃ XONG
 
-Project **chưa từng gọi** `vnstock Market.index()` — không có khái niệm "chỉ số" ở bất kỳ đâu
-(khác với "mã cổ phiếu"). Cần làm mới hoàn toàn, theo đúng pattern anti-corruption layer đã dùng:
-1. `python/src/vst_python/fetcher.py` — thêm `fetch_index(symbol, start, end)` gọi
-   `Market().index(...)` (cần research API chính xác của vnstock cho phần này, tên method có thể
-   khác `index`).
-2. `python/src/vst_python/api.py` — thêm `GET /index`.
-3. Backend: DTO/model/mapper/`VnstockClient` method mới, tương tự hệ OHLCV đã có
-   (`VnstockOhlcvDto`/`OhlcvBar`/`OhlcvMapper`) — có thể tái dùng gần như nguyên xi pattern đó vì
-   OHLCV của 1 chỉ số về hình dạng dữ liệu giống hệt OHLCV của 1 mã cổ phiếu.
-4. Cân nhắc: có cần bảng DB riêng (`index_history`) hay tái dùng `price_history_ohlcv` với 1 cách
-   đánh dấu "đây là index, không phải mã"? Cần quyết định trước khi migration.
+Làm theo `.claude/plans/be-market-index.md` (có ghi lại phần research vnstock). Tóm tắt những gì
+đang chạy, để không ai làm lại:
+
+- `fetch_index_ohlcv` + `GET /index-ohlcv` ở Python (`_market.index(symbol).ohlcv(...)`), trả cùng
+  cột với `/ohlcv` nên **tái dùng `VnstockOhlcvDto`/`OhlcvBar`/`OhlcvMapper` nguyên xi**, không có
+  DTO/mapper mới.
+- `V6__market_indices.sql` — cột `stocks.kind ('STOCK'|'INDEX')` + seed 4 chỉ số; tái dùng
+  `price_history_ohlcv` thay vì bảng riêng. `StockRepository.findAllSymbols()` đã lọc
+  `kind='STOCK'` để full-catalog ingestion không fetch index như mã cổ phiếu.
+- `IndexIngestionService` (cron `0 10 18 * * MON-FRI`), `IndexQuoteService`,
+  `GET /api/v1/indices` + `GET /api/v1/indices/{symbol}/ohlcv`.
+- FE đã nối API thật: `services/marketIndexService.ts` + `useMarketIndices`/`useIndexSparkline`,
+  `IndexTicker.tsx` không còn dùng mock (mock chỉ số đã bị xóa khỏi `marketOverviewMockData.ts`).
+
+**Việc còn chờ ở mục này** (nhỏ, nằm ở BE — chưa làm, đã nói với user): `IndexQuoteService.toQuote`
+throw `ResourceNotFoundException` khi **một** chỉ số chưa có bar nào, mà vì nằm trong `.map()` nên
+làm **cả list** `GET /api/v1/indices` trả 404. Trên DB mới (chưa qua phiên ingest 18:10 nào) endpoint
+coi như chết — FE hiện hiển thị dòng gợi ý "job ingest chỉ số chưa chạy phiên nào" thay vì báo lỗi
+đỏ. Hướng sửa: bỏ qua chỉ số chưa có dữ liệu thay vì throw (chỉ 404 khi **không** chỉ số nào có
+dữ liệu), nhớ cập nhật `IndexQuoteServiceTest`. Cũng chưa có cách trigger ingest bằng tay ngoài cron
+— đang phải chờ cron hoặc gọi `ingestAll()` thủ công.
 
 ### 2. Treemap theo ngành (Tài chính, Bất động sản, Vật liệu cơ bản...)
 
@@ -140,10 +150,10 @@ Mono) và chốt: làm FE trước với **mock data cứng** cho cả 3 phần 
 bật đèn xanh làm BE, chỉ là ghi lại hợp đồng field để khi làm BE thật thì khớp đúng shape FE đã
 dựng, khỏi phải đổi FE lần 2:
 
-- `IndexTicker.tsx` dùng `IndexQuote { symbol; name; value; change; percentChange; time }`
-  (`fe/src/models/marketIndex.ts`) ↔ mục 1 — 1 `GET /index` trả về nên là `IndexQuote[]`; sparkline
-  lịch sử nên là endpoint OHLCV riêng (giống `fetch_ohlcv`/`GET /ohlcv` hiện có), không nhúng inline
-  trong `IndexQuote`.
+- ~~`IndexTicker.tsx`~~ — **đã nối BE thật**, không còn là hợp đồng chờ: `IndexQuote` khớp
+  field-by-field với `IndexQuoteResponse`, sparkline lấy từ endpoint OHLCV riêng
+  (`GET /api/v1/indices/{symbol}/ohlcv`) đúng như hợp đồng ban đầu, không nhúng inline trong
+  `IndexQuote`. Xem mục 1.
 - `SectorTreemap.tsx`/`SectorMoneyFlow.tsx` dùng chung `SectorSnapshot { code; name;
   marketCapWeight; percentChange; moneyFlow }` (`fe/src/models/sector.ts`) ↔ mục 2 và 3 —
   `code`/`name` map tới cột `industry`/`icb_code` sẽ thêm ở mục 2; `moneyFlow` map tới field
@@ -151,15 +161,19 @@ dựng, khỏi phải đổi FE lần 2:
 - `MarketBreadthBar.tsx` dùng `MarketBreadthSnapshot { advancing; declining; unchanged; ceiling;
   floor; time }` (`fe/src/models/marketBreadth.ts`) ↔ mục 3 — đánh đổi EOD-vs-realtime đã ghi ở
   trên áp dụng trực tiếp cho field này.
-- Các hàm mock (`getMarketIndices`, `getMarketBreadth`, `getSectorTreemap`, `getSectorMoneyFlow` ở
-  `fe/src/features/marketOverview/marketOverviewMockData.ts`) hiện là hàm **đồng bộ** trả hằng số —
+- Các hàm mock còn lại (`getMarketBreadth`, `getSectorTreemap`, `getSectorMoneyFlow` ở
+  `fe/src/features/marketOverview/marketOverviewMockData.ts`) vẫn là hàm **đồng bộ** trả hằng số —
   nối BE thật sau này là việc sửa phía gọi (bọc `useQuery`), không phải chỉ đổi nội dung 1 file.
+  Mẫu để copy khi tới lúc: `useMarketIndices`/`useIndexSparkline` + `marketIndexService.ts` của mục 1.
 - Màu semantic trần/sàn/tham chiếu/tăng/giảm đã được gom thành token CSS (`--up/--down/--ceiling/
   --floor/--ref` trong `fe/src/index.css`) thay vì hardcode rời rạc như trước — nếu sau này thêm
   UI mới liên quan tới các khái niệm này, dùng lại token, không tạo màu hardcode mới.
 
 ### Không nằm trong việc này
 
-- Chưa quyết định có làm BE hay không, chỉ ghi lại hướng đi + hợp đồng field FE nếu sau này quyết
-  định làm.
+- Mục 2 (ngành ICB) và mục 3 (breadth + dòng tiền): chưa quyết định có làm BE hay không, chỉ ghi
+  lại hướng đi + hợp đồng field FE nếu sau này quyết định làm. Phần research đã xong cho 2 mục này
+  nằm ở cuối `.claude/plans/be-market-index.md` (ICB phải dùng `Listing(source="vci")`; breadth cần
+  `INGESTION_ALL_SYMBOLS=true` + chờ ≥2 phiên; treemap không có market cap thật nên phải dùng
+  turnover, `moneyFlow` chỉ là heuristic).
 - Watchlist list-card + sparkline (phần khả thi) đã làm xong, không thuộc phạm vi ghi chú này.
