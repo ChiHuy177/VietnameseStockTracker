@@ -50,5 +50,10 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
+      # vnstock/vnai không còn file trên PyPI, phải lấy từ index riêng của nhà cung cấp —
+      # giống PIP_EXTRA_INDEX_URL trong python/Dockerfile. Thiếu dòng này thì `pip install -e .`
+      # báo "No matching distribution found for vnstock".
       - run: pip install -e .
+        env:
+          PIP_EXTRA_INDEX_URL: https://vnstocks.com/api/simple
       - run: python -c "import vst_python; print(vst_python.__version__)"
