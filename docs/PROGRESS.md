@@ -98,6 +98,13 @@ watchlist (global) → PriceBoardPollerService [@Scheduled mỗi 3s]
   Server-push only, không có destination nào cho client SEND.
 - Unit test: `PriceQuoteMapperTest` (map field, reject null), `PriceBoardPollerServiceTest`
   (watchlist rỗng → không gọi gì; có mã → fetch/map/publish; lỗi fetch → không propagate).
+- **`PriceQuote` đã mở rộng** (Phase 4): ngoài 6 field lõi còn trần/sàn/tham chiếu, 3 mức mua +
+  3 mức bán (`List<PriceLevel>`, mapper gom từ field phẳng `bid_price_1..3` của vnstock), khối
+  ngoại mua/bán/room, và `totalValue` (chưa ai đọc — dành cho "dòng tiền theo ngành"). Khác 6 field
+  lõi, các field này **không** required: vnstock trả thiếu là bình thường (ngoài giờ giao dịch, mã
+  không ai đặt lệnh) nên mapper để null, và `PriceQuote` khai `@JsonInclude(NON_NULL)` để field
+  thiếu **vắng mặt** trong JSON — FE phân biệt "chưa có" bằng `undefined`, gửi null lên sẽ làm FE
+  format một giá trị không tồn tại.
 
 **Còn thiếu**: `price_snapshots` hypertable (tạo từ Phase 1) vẫn chưa được dùng để lưu lại lịch sử
 tick real-time — hiện tại data chỉ broadcast, không persist.
@@ -125,8 +132,8 @@ Redux Toolkit (`store.ts`), React Router (`BrowserRouter`), `@stomp/stompjs`, Ta
 
 **Trang `/stocks/{symbol}` (StockDetailPage, lazy-load)**: chart OHLCV
 (`lightweight-charts`) + `PriceBoardPanel` kiểu SSI iBoard (trần/sàn/tham chiếu + bảng mua/bán 3
-mức + room ngoại). Panel đang hiện "—"/ẩn phần bid/ask vì backend chưa map các field đó — xem
-`CLAUDE.md`, mục đầu tiên.
+mức + room ngoại) — đọc real-time từ Redux như watchlist, và **đã có dữ liệu thật** từ khi
+`PriceQuote` được mở rộng (xem Phase 3). Phần nào vnstock không trả thì tự hiện "—"/ẩn, không lỗi.
 
 **Theme**: trading-terminal tối (navy/gold) + font Barlow Condensed/IBM Plex Mono, màu semantic
 trần/sàn/tham chiếu/tăng/giảm là token CSS (`--up/--down/--ceiling/--floor/--ref` trong `index.css`).
@@ -148,6 +155,7 @@ static rồi serve qua nginx, nginx proxy `/api/` và `/ws` (có Upgrade header)
 | STOMP | `/ws` (handshake), topic `/topic/price-board` | 3 |
 | GET | `/api/v1/indices` | 4 |
 | GET | `/api/v1/indices/{symbol}/ohlcv?start=&end=` | 4 |
+| POST | `/api/v1/indices/ingest` (**chỉ profile `dev`**) | 4 |
 
 **Python service (`localhost:8000`, nội bộ — backend gọi, không phải public API)**
 
@@ -165,9 +173,9 @@ vnstock còn nhiều class/API chưa dùng tới (`Company`, `Finance`, `Fundame
 
 - **Phase 4 (đang làm)**: trang chủ + trang chi tiết mã + chart OHLCV đã xong. Còn lại trên FE là
   2 widget đang dùng mock (độ rộng thị trường, ngành/dòng tiền) — chờ backend, xem `CLAUDE.md`.
-- **Việc đang chờ cụ thể** (có ghi chi tiết trong `CLAUDE.md`): mở rộng `PriceQuote` (trần/sàn/tham
-  chiếu + bid/ask 3 mức + room ngoại) cho `PriceBoardPanel`; sửa `GET /api/v1/indices` đang trả 404
-  cho cả list khi 1 chỉ số chưa có dữ liệu; multi-user/auth cho watchlist.
+- **Việc đang chờ cụ thể** (có ghi chi tiết trong `CLAUDE.md`): backend cho độ rộng thị trường +
+  ngành/dòng tiền (2 widget FE còn mock); multi-user/auth cho watchlist. `price_snapshots`
+  hypertable tạo từ Phase 1 vẫn chưa dùng.
 - **Phase 5 (dự kiến, chưa chi tiết)**: nâng cao chất lượng test — Testcontainers, SonarQube,
   coverage threshold.
 - **Phase 6-7**: chưa có tài liệu chốt chi tiết — xem `CLAUDE.md` cho các việc đang chờ, cần xác

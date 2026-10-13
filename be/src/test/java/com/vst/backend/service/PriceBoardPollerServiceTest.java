@@ -41,6 +41,20 @@ class PriceBoardPollerServiceTest {
     private final WatchlistEntry watchlistEntry =
             new WatchlistEntry("VNM", "CTCP Sữa Việt Nam", "HOSE", Instant.now());
 
+    /** Poller không quan tâm field nào trong quote, nên fixture chỉ cần 6 field lõi. */
+    private static VnstockPriceBoardDto coreOnlyDto() {
+        return new VnstockPriceBoardDto(
+                "VNM", 1L, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, 1L,
+                null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null);
+    }
+
+    private static PriceQuote coreOnlyQuote() {
+        return new PriceQuote(
+                "VNM", Instant.ofEpochMilli(1L), BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, 1L,
+                null, null, null, null, null, null, null, null, null);
+    }
+
     @Test
     void doesNothingWhenWatchlistIsEmpty() {
         PriceBoardPollerService service =
@@ -56,10 +70,8 @@ class PriceBoardPollerServiceTest {
     void fetchesMapsAndPublishesEventForWatchlistSymbols() {
         PriceBoardPollerService service =
                 new PriceBoardPollerService(vnstockClient, mapper, watchlistRepository, eventPublisher);
-        VnstockPriceBoardDto dto = new VnstockPriceBoardDto(
-                "VNM", 1L, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, 1L);
-        PriceQuote quote = new PriceQuote(
-                "VNM", Instant.ofEpochMilli(1L), BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, 1L);
+        VnstockPriceBoardDto dto = coreOnlyDto();
+        PriceQuote quote = coreOnlyQuote();
         when(watchlistRepository.findAll()).thenReturn(List.of(watchlistEntry));
         when(vnstockClient.fetchPriceBoard(List.of("VNM"))).thenReturn(List.of(dto));
         when(mapper.toDomain(dto)).thenReturn(quote);

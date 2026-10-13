@@ -29,6 +29,7 @@ class IndexQuoteServiceTest {
     private PriceHistoryRepository priceHistoryRepository;
 
     private final StockListing vnindex = new StockListing("VNINDEX", "VN-INDEX", "HOSE");
+    private final StockListing vn30 = new StockListing("VN30", "VN30", "HOSE");
 
     private static OhlcvBar barWithClose(BigDecimal close, Instant time) {
         return new OhlcvBar(1L, time, "1D", close, close, close, close, 1_000_000L, "vnstock");
@@ -71,12 +72,38 @@ class IndexQuoteServiceTest {
     }
 
     @Test
-    void throwsNotFoundWhenNoPriceHistoryIngestedYet() {
+    void throwsNotFoundWhenNoIndexHasPriceHistoryYet() {
         IndexQuoteService service = new IndexQuoteService(stockRepository, priceHistoryRepository);
         when(stockRepository.findIndices()).thenReturn(List.of(vnindex));
         when(stockRepository.findBySymbol("VNINDEX")).thenReturn(Optional.of(1L));
         when(priceHistoryRepository.findLatestTwoBars(1L)).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.getCurrentQuotes()).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // Một chỉ số thiếu dữ liệu không được làm sập cả list — đây là lý do endpoint từng trả 404 trên
+    // DB mới dù 3 chỉ số khác đã có bar.
+    @Test
+    void leavesOutIndicesWithoutHistoryInsteadOfFailingTheWholeList() {
+        IndexQuoteService service = new IndexQuoteService(stockRepository, priceHistoryRepository);
+        when(stockRepository.findIndices()).thenReturn(List.of(vnindex, vn30));
+        when(stockRepository.findBySymbol("VNINDEX")).thenReturn(Optional.of(1L));
+        when(stockRepository.findBySymbol("VN30")).thenReturn(Optional.of(2L));
+        when(priceHistoryRepository.findLatestTwoBars(1L)).thenReturn(List.of());
+        when(priceHistoryRepository.findLatestTwoBars(2L))
+                .thenReturn(List.of(barWithClose(BigDecimal.valueOf(1800.00), Instant.parse("2026-10-09T00:00:00Z"))));
+
+        List<IndexQuoteResponse> result = service.getCurrentQuotes();
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).symbol()).isEqualTo("VN30");
+    }
+
+    @Test
+    void returnsEmptyListWhenNoIndexIsSeeded() {
+        IndexQuoteService service = new IndexQuoteService(stockRepository, priceHistoryRepository);
+        when(stockRepository.findIndices()).thenReturn(List.of());
+
+        assertThat(service.getCurrentQuotes()).isEmpty();
     }
 }

@@ -8,59 +8,6 @@ Xem [docs/PROGRESS.md](docs/PROGRESS.md) để biết đầy đủ kiến trúc,
 phase (0-4). File này chỉ dùng để ghi lại các việc **đang chờ làm** mà một phiên trước đã cố ý để
 lại — tránh bị quên giữa các phiên làm việc.
 
-## Việc đang chờ (backend) — mở rộng `PriceQuote` real-time cho trang chi tiết mã
-
-**Bối cảnh**: FE đã build xong trang chi tiết mã (`fe/src/pages/StockDetailPage.tsx`) theo giao
-diện kiểu SSI iBoard — quy ước màu chuẩn thị trường VN: **tím = giá trần**, **xanh dương = giá
-sàn**, **vàng = giá tham chiếu**, cộng bảng giá mua/bán 3 mức và room khối ngoại
-(`fe/src/features/priceBoard/PriceBoardPanel.tsx`). Quyết định lúc đó (đã hỏi user, đã chốt): làm
-FE trước theo model đầy đủ, BE bổ sung sau — ghi note ở đây thay vì làm luôn để không đụng lại code
-Phase 3 đã commit trong cùng 1 hơi.
-
-Model FE `fe/src/models/priceQuote.ts` đã có sẵn các field mở rộng, khai báo **optional** — UI tự
-hiển thị ("—" hoặc ẩn hẳn phần bid/ask) khi field chưa tồn tại. Nghĩa là **không cần đổi gì ở FE**
-khi làm xong phần BE dưới đây — cứ bổ sung field, backend gửi lên, FE tự sáng.
-
-Dữ liệu thô cần thiết **đã có sẵn** ở Python service (`GET /price-board`, xem
-`python/src/vst_python/fetcher.py::fetch_price_board`, trả nguyên `Trading().price_board()` của
-vnstock) — cột `reference_price`, `ceiling_price`, `floor_price`, `bid_price_1..3`, `bid_vol_1..3`,
-`ask_price_1..3`, `ask_vol_1..3`, `foreign_buy_volume`, `foreign_sell_volume`, `foreign_room` đều đã
-có trong response, chỉ là backend Java hiện chưa map. **Không cần sửa Python.**
-
-### Việc cần làm (theo đúng pattern anti-corruption layer đã dùng xuyên suốt project)
-
-1. **`be/src/main/java/com/vst/backend/dto/vnstock/VnstockPriceBoardDto.java`** — thêm field raw
-   (dùng `@JsonProperty` cho snake_case), kiểu `BigDecimal` cho giá, `Long` cho khối lượng:
-   `referencePrice`, `ceilingPrice`, `floorPrice`, `bidPrice1/2/3`, `bidVol1/2/3`, `askPrice1/2/3`,
-   `askVol1/2/3`, `foreignBuyVolume`, `foreignSellVolume`, `foreignRoom`.
-
-2. **`be/src/main/java/com/vst/backend/model/PriceQuote.java`** — thêm field domain tương ứng.
-   Khác với 6 field gốc (`symbol/time/price/change/percentChange/volume`, đang required trong
-   mapper), các field mới nên **nullable/optional** — vnstock không phải lúc nào cũng trả đủ (ví
-   dụ ngoài giờ giao dịch, hoặc mã không có ai đặt lệnh mua/bán). Cân nhắc gom bid/ask thành
-   `List<PriceLevel>` (record `PriceLevel(BigDecimal price, long volume)`) thay vì 6 field rời rạc
-   `bidPrice1..3`/`askPrice1..3` — khớp với shape `bids`/`asks` mảng mà FE đã viết sẵn
-   (`fe/src/models/priceQuote.ts`), và mapper là đúng chỗ để làm phép biến đổi flat → array này.
-
-3. **`be/src/main/java/com/vst/backend/mapper/PriceQuoteMapper.java`** — map thêm field mới,
-   **không** `requireField()`/throw cho field mới (khác 6 field gốc) — null thì cứ để null, domain
-   model đã optional. Cập nhật `PriceQuoteMapperTest` theo (thêm case field mới null vẫn map được
-   bình thường, không throw).
-
-4. `PriceBoardPollerService`, `PriceBoardBroadcaster`, `PriceBoardUpdateEvent` — **không cần đổi
-   gì**, chỉ đi theo `PriceQuote` đã mở rộng (chúng chỉ cầm `List<PriceQuote>`, không biết field
-   bên trong).
-
-5. Verify: add 1 mã vào watchlist, chờ 1 chu kỳ poll (3s), mở `/stocks/{symbol}` trên FE — panel
-   trần/sàn/tham chiếu + bảng mua/bán phải tự hiện ra (hiện tại đang hiện "—"/ẩn vì thiếu field).
-
-### Không nằm trong việc này
-
-- `price_snapshots` hypertable (đã tạo từ Phase 1, chưa dùng) — việc persist lịch sử tick real-time
-  là việc khác, chưa có yêu cầu.
-- Không cần đổi `VnstockClient.fetchPriceBoard()` hay endpoint `/price-board` — chỉ đổi tầng
-  DTO/model/mapper.
-
 ## Việc đang chờ (kiến trúc) — Multi-user / auth cho watchlist
 
 **Bối cảnh**: watchlist hiện là **global, dùng chung cho mọi người** — quyết định cố ý từ Phase 2
@@ -98,29 +45,11 @@ Phần khả thi ngay (watchlist dạng list-card + sparkline) đã làm. Mục 
 xong** cả BE lẫn FE. Mục 2 và 3 dưới đây vẫn **cố ý chưa làm** vì đòi hỏi nguồn dữ liệu hoàn toàn
 mới, không phải việc UI đơn thuần — đã trình bày rõ với user và được đồng ý hoãn lại.
 
-### 1. Chỉ số thị trường (VNINDEX / HNXINDEX / UPCOMINDEX / VN30) — ĐÃ XONG
+### 1. Chỉ số thị trường (VNINDEX / HNXINDEX / UPCOMINDEX / VN30) — ĐÃ XONG, KHÔNG CÒN VIỆC
 
-Làm theo `.claude/plans/be-market-index.md` (có ghi lại phần research vnstock). Tóm tắt những gì
-đang chạy, để không ai làm lại:
-
-- `fetch_index_ohlcv` + `GET /index-ohlcv` ở Python (`_market.index(symbol).ohlcv(...)`), trả cùng
-  cột với `/ohlcv` nên **tái dùng `VnstockOhlcvDto`/`OhlcvBar`/`OhlcvMapper` nguyên xi**, không có
-  DTO/mapper mới.
-- `V6__market_indices.sql` — cột `stocks.kind ('STOCK'|'INDEX')` + seed 4 chỉ số; tái dùng
-  `price_history_ohlcv` thay vì bảng riêng. `StockRepository.findAllSymbols()` đã lọc
-  `kind='STOCK'` để full-catalog ingestion không fetch index như mã cổ phiếu.
-- `IndexIngestionService` (cron `0 10 18 * * MON-FRI`), `IndexQuoteService`,
-  `GET /api/v1/indices` + `GET /api/v1/indices/{symbol}/ohlcv`.
-- FE đã nối API thật: `services/marketIndexService.ts` + `useMarketIndices`/`useIndexSparkline`,
-  `IndexTicker.tsx` không còn dùng mock (mock chỉ số đã bị xóa khỏi `marketOverviewMockData.ts`).
-
-**Việc còn chờ ở mục này** (nhỏ, nằm ở BE — chưa làm, đã nói với user): `IndexQuoteService.toQuote`
-throw `ResourceNotFoundException` khi **một** chỉ số chưa có bar nào, mà vì nằm trong `.map()` nên
-làm **cả list** `GET /api/v1/indices` trả 404. Trên DB mới (chưa qua phiên ingest 18:10 nào) endpoint
-coi như chết — FE hiện hiển thị dòng gợi ý "job ingest chỉ số chưa chạy phiên nào" thay vì báo lỗi
-đỏ. Hướng sửa: bỏ qua chỉ số chưa có dữ liệu thay vì throw (chỉ 404 khi **không** chỉ số nào có
-dữ liệu), nhớ cập nhật `IndexQuoteServiceTest`. Cũng chưa có cách trigger ingest bằng tay ngoài cron
-— đang phải chờ cron hoặc gọi `ingestAll()` thủ công.
+Xong cả BE lẫn FE (kể cả endpoint trigger ingest tay cho profile `dev`). Kiến trúc + luồng dữ liệu
+xem `docs/PROGRESS.md`; phần research vnstock xem `.claude/plans/be-market-index.md`. Giữ lại tiêu
+đề này chỉ để khỏi ai đọc mục 2/3 dưới đây rồi tưởng mục 1 cũng còn dở.
 
 ### 2. Treemap theo ngành (Tài chính, Bất động sản, Vật liệu cơ bản...)
 
@@ -139,8 +68,9 @@ watchlist. Đây là thay đổi phạm vi lớn so với quyết định Phase 
 watchlist để tránh vượt rate-limit vnstock — xem phần Phase 3 trong `docs/PROGRESS.md`). Cần bàn
 lại đánh đổi: có thể dùng dữ liệu **cuối ngày** (đọc từ `price_history_ohlcv` đã ingest, không cần
 real-time) cho phần "biến động thị trường" này thay vì đòi real-time toàn thị trường — rẻ hơn nhiều
-về mặt gọi API, hợp lý hơn cho quy mô project. "Dòng tiền" (`total_value` — vnstock đã trả field
-này trong `price-board`, xem `VnstockPriceBoardDto`) là khái niệm riêng, chưa map ở backend.
+về mặt gọi API, hợp lý hơn cho quy mô project. "Dòng tiền" (`total_value`) là khái niệm riêng — field này **đã được map** vào
+`VnstockPriceBoardDto`/`PriceQuote` (làm chung lúc mở rộng `PriceQuote`), nhưng chưa có ai đọc tới:
+cần job snapshot toàn thị trường nói ở trên mới dùng được, poll 3s theo watchlist không đủ phạm vi.
 
 ### FE mock UI đã xong — hợp đồng field cho backend
 
@@ -156,8 +86,8 @@ dựng, khỏi phải đổi FE lần 2:
   `IndexQuote`. Xem mục 1.
 - `SectorTreemap.tsx`/`SectorMoneyFlow.tsx` dùng chung `SectorSnapshot { code; name;
   marketCapWeight; percentChange; moneyFlow }` (`fe/src/models/sector.ts`) ↔ mục 2 và 3 —
-  `code`/`name` map tới cột `industry`/`icb_code` sẽ thêm ở mục 2; `moneyFlow` map tới field
-  `total_value` đã có sẵn trong `VnstockPriceBoardDto` nhưng chưa map, nói ở mục 3.
+  `code`/`name` map tới cột `industry`/`icb_code` sẽ thêm ở mục 2; `moneyFlow` map tới
+  `PriceQuote.totalValue` (đã map ở backend, chưa ai đọc) — nói ở mục 3.
 - `MarketBreadthBar.tsx` dùng `MarketBreadthSnapshot { advancing; declining; unchanged; ceiling;
   floor; time }` (`fe/src/models/marketBreadth.ts`) ↔ mục 3 — đánh đổi EOD-vs-realtime đã ghi ở
   trên áp dụng trực tiếp cho field này.

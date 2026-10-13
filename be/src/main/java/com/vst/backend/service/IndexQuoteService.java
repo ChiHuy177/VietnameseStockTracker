@@ -9,6 +9,9 @@ import com.vst.backend.repository.StockRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Objects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
@@ -20,6 +23,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class IndexQuoteService {
 
+    private static final Logger log = LoggerFactory.getLogger(IndexQuoteService.class);
+
     private static final int PERCENT_SCALE = 2;
 
     private final StockRepository stockRepository;
@@ -30,17 +35,34 @@ public class IndexQuoteService {
         this.priceHistoryRepository = priceHistoryRepository;
     }
 
+    /**
+     * Chỉ số chưa có bar nào thì bị bỏ qua, không làm fail cả list — ingestion chạy theo cron nên
+     * một chỉ số mới seed (hoặc vnstock lỗi đúng mã đó) là trạng thái bình thường, không phải lỗi
+     * của request. Chỉ khi **không** chỉ số nào có dữ liệu mới là 404: lúc đó job ingest chưa chạy
+     * phiên nào.
+     */
     public List<IndexQuoteResponse> getCurrentQuotes() {
-        return stockRepository.findIndices().stream().map(this::toQuote).toList();
+        List<StockListing> indices = stockRepository.findIndices();
+        List<IndexQuoteResponse> quotes = indices.stream()
+                .map(this::toQuoteOrNull)
+                .filter(Objects::nonNull)
+                .toList();
+
+        if (quotes.isEmpty() && !indices.isEmpty()) {
+            throw new ResourceNotFoundException("No price history ingested yet for any market index");
+        }
+
+        return quotes;
     }
 
-    private IndexQuoteResponse toQuote(StockListing index) {
+    private IndexQuoteResponse toQuoteOrNull(StockListing index) {
         long stockId = stockRepository.findBySymbol(index.symbol())
                 .orElseThrow(() -> new ResourceNotFoundException("Stock", index.symbol()));
 
         List<OhlcvBar> latestTwo = priceHistoryRepository.findLatestTwoBars(stockId);
         if (latestTwo.isEmpty()) {
-            throw new ResourceNotFoundException("No price history ingested yet for index " + index.symbol());
+            log.warn("No price history for index {} yet, leaving it out of the quote list", index.symbol());
+            return null;
         }
 
         OhlcvBar latest = latestTwo.get(0);
