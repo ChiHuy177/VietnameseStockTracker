@@ -3,6 +3,19 @@ import { CandlestickSeries, createChart, HistogramSeries, type ISeriesApi } from
 import { useEffect, useRef } from 'react';
 import { toCandlestickData, toVolumeData } from './ohlcvChartData';
 
+// lightweight-charts' color parser only understands hex/rgb/hsl/named colors, not CSS color
+// functions like oklch() — our tokens use oklch(), so resolve through the browser first, which
+// normalizes any valid CSS color to rgb(...).
+function resolveCssColor(value: string): string {
+  const probe = document.createElement('div');
+  probe.style.color = value;
+  probe.style.display = 'none';
+  document.body.appendChild(probe);
+  const resolved = getComputedStyle(probe).color;
+  document.body.removeChild(probe);
+  return resolved;
+}
+
 export function OhlcvChart({ bars }: { bars: OhlcvBar[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -17,8 +30,8 @@ export function OhlcvChart({ bars }: { bars: OhlcvBar[] }) {
     // lightweight-charts draws to <canvas>, so it can't consume Tailwind utility classes like
     // the rest of the app — read the raw token values once at mount instead.
     const rootStyle = getComputedStyle(document.documentElement);
-    const upColor = rootStyle.getPropertyValue('--up').trim();
-    const downColor = rootStyle.getPropertyValue('--down').trim();
+    const upColor = resolveCssColor(rootStyle.getPropertyValue('--up').trim());
+    const downColor = resolveCssColor(rootStyle.getPropertyValue('--down').trim());
     colorsRef.current = { upColor, downColor };
 
     const chart = createChart(containerRef.current, {
