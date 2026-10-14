@@ -4,16 +4,19 @@ import { useEffect, useRef } from 'react';
 import { toCandlestickData, toVolumeData } from './ohlcvChartData';
 
 // lightweight-charts' color parser only understands hex/rgb/hsl/named colors, not CSS color
-// functions like oklch() — our tokens use oklch(), so resolve through the browser first, which
-// normalizes any valid CSS color to rgb(...).
+// functions like oklch() — and getComputedStyle() doesn't help either, since browsers now
+// preserve oklch() in computed style instead of down-converting it to rgb(). A canvas always
+// rasterizes to 8-bit sRGB regardless of input color space, so paint a 1x1 pixel and read the
+// bytes back to get a guaranteed rgb() string.
 function resolveCssColor(value: string): string {
-  const probe = document.createElement('div');
-  probe.style.color = value;
-  probe.style.display = 'none';
-  document.body.appendChild(probe);
-  const resolved = getComputedStyle(probe).color;
-  document.body.removeChild(probe);
-  return resolved;
+  const canvas = document.createElement('canvas');
+  canvas.width = 1;
+  canvas.height = 1;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = value;
+  ctx.fillRect(0, 0, 1, 1);
+  const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+  return a === 255 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${a / 255})`;
 }
 
 export function OhlcvChart({ bars }: { bars: OhlcvBar[] }) {
