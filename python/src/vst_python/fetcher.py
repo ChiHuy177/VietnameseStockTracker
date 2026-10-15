@@ -10,6 +10,9 @@ from vnstock import Listing, Market, Trading
 _market = Market()
 _listing = Listing()
 _trading = Trading()
+# ICB sector classification is only implemented by the "vci" source — the default (kbs) used by
+# _listing above raises NotImplementedError for industries_icb()/symbols_by_industries().
+_listing_vci = Listing(source="vci")
 
 
 def fetch_ohlcv(symbol: str, start: str, end: str):
@@ -50,8 +53,20 @@ def fetch_price_board(symbols: list[str]):
 
     Trả về pandas.DataFrame với các cột gồm symbol, close_price, price_change,
     percent_change, volume_accumulated, bid/ask_price_1..3, ...
+
+    Chấp nhận được cả danh sách ~1500+ mã trong 1 lần gọi (đã verify thủ công: ~4s, không lỗi,
+    không cần chia lô) — dùng cho cả watchlist (vài mã) lẫn snapshot toàn thị trường.
     """
     return _trading.price_board(symbols)
+
+
+def fetch_industries():
+    """Fetch phân loại ngành ICB (4 cấp, rộng → hẹp) cho toàn bộ mã trên thị trường, 1 lần gọi.
+
+    Trả về pandas.DataFrame với các cột: symbol, icb_level, icb_code, icb_name. Lọc theo
+    icb_level ở tầng Java (IndustryMapper), không lọc ở đây — DataFrame trả nguyên bản.
+    """
+    return _listing_vci.symbols_by_industries(lang="vi")
 
 
 if __name__ == "__main__":

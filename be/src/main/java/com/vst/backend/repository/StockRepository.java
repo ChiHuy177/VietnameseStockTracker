@@ -1,8 +1,15 @@
 package com.vst.backend.repository;
 
+import com.vst.backend.model.StockIndustry;
 import com.vst.backend.model.StockListing;
+import java.sql.Array;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -35,6 +42,11 @@ public class StockRepository {
 
     private static final String FIND_INDICES_SQL =
             "SELECT symbol, name, exchange FROM stocks WHERE kind = 'INDEX' ORDER BY symbol";
+
+    private static final String UPSERT_INDUSTRY_SQL =
+            "UPDATE stocks SET icb_code = ?, icb_name = ? WHERE symbol = ?";
+
+    private static final String FIND_IDS_BY_SYMBOLS_SQL = "SELECT id, symbol FROM stocks WHERE symbol = ANY(?)";
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -86,5 +98,39 @@ public class StockRepository {
     public List<StockListing> findIndices() {
         return jdbcTemplate.query(FIND_INDICES_SQL,
                 (rs, rowNum) -> new StockListing(rs.getString("symbol"), rs.getString("name"), rs.getString("exchange")));
+    }
+
+    /**
+     * Update-only: a symbol only gets a sector once it's already known (via listing sync). Used
+     * by the ICB sync job.
+     */
+    public void upsertIndustries(List<StockIndustry> industries) {
+        jdbcTemplate.batchUpdate(UPSERT_INDUSTRY_SQL, industries, industries.size(),
+                (ps, item) -> {
+                    ps.setString(1, item.icbCode());
+                    ps.setString(2, item.icbName());
+                    ps.setString(3, item.symbol());
+                });
+    }
+
+    /**
+     * Resolves ids for a batch of symbols in 1 round trip — used by the daily market snapshot job,
+     * which gets all its prices back from a single {@code price_board} call and would otherwise need
+     * ~1500 serial {@link #findOrCreateBySymbol} lookups to match them back to stock ids.
+     */
+    public Map<String, Long> findIdsBySymbols(List<String> symbols) {
+        return jdbcTemplate.execute((ConnectionCallback<Map<String, Long>>) connection -> {
+            Array symbolArray = connection.createArrayOf("varchar", symbols.toArray());
+            try (PreparedStatement ps = connection.prepareStatement(FIND_IDS_BY_SYMBOLS_SQL)) {
+                ps.setArray(1, symbolArray);
+                try (ResultSet rs = ps.executeQuery()) {
+                    Map<String, Long> idsBySymbol = new HashMap<>();
+                    while (rs.next()) {
+                        idsBySymbol.put(rs.getString("symbol"), rs.getLong("id"));
+                    }
+                    return idsBySymbol;
+                }
+            }
+        });
     }
 }

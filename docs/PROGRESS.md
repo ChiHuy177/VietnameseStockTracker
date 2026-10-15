@@ -125,8 +125,9 @@ Redux Toolkit (`store.ts`), React Router (`BrowserRouter`), `@stomp/stompjs`, Ta
 - `IndexTicker` (`features/marketOverview/`) — 4 chỉ số VNINDEX/VN30/HNXINDEX/UPCOMINDEX từ
   `GET /api/v1/indices` qua TanStack Query (`useMarketIndices`), sparkline 30 ngày từ
   `GET /api/v1/indices/{symbol}/ohlcv` (`useIndexSparkline`)
-- `MarketBreadthBar`/`SectorTreemap`/`SectorMoneyFlow` — **vẫn dùng mock data cứng**
-  (`marketOverviewMockData.ts`), chưa có backend (xem `CLAUDE.md`, mục "Trang chủ kiểu Fireant")
+- `MarketBreadthBar`/`SectorTreemap`/`SectorMoneyFlow` — **đã nối backend thật** (xem mục "Phase 4b
+  — Breadth thị trường + treemap/dòng tiền ngành" bên dưới), không còn mock
+  (`marketOverviewMockData.ts` đã xoá)
 - `HealthCheck` (Phase 0) không còn render trong `App.tsx` nữa (route `/` đã có nội dung thật để
   chứng minh FE↔BE), nhưng file feature vẫn giữ lại
 
@@ -140,6 +141,52 @@ trần/sàn/tham chiếu/tăng/giảm là token CSS (`--up/--down/--ceiling/--fl
 
 **Docker**: cả 4 service (`db`/`python`/`be`/`fe`) chạy được bằng `docker compose up` — FE build ra
 static rồi serve qua nginx, nginx proxy `/api/` và `/ws` (có Upgrade header) sang backend.
+
+## Phase 4b — Breadth thị trường + treemap/dòng tiền theo ngành (hoàn thành)
+
+Phần còn lại của trang chủ kiểu Fireant (mục 2, 3 trong research cũ) — độ rộng thị trường
+(tăng/giảm/đứng giá/trần/sàn) và treemap/dòng tiền theo ngành ICB. Research ban đầu
+(`.claude/plans/be-market-index.md`) dự đoán cần tính breadth từ 2 bar OHLCV gần nhất và lo ngại chi
+phí gọi vnstock (~1500 lần/ngày) — khi bắt tay code thì phát hiện rẻ hơn hẳn:
+
+- `Trading().price_board(symbols)` chấp nhận **toàn bộ ~1500 mã trong 1 lần gọi** (verify thủ công:
+  ~4s, không cần chia lô) và đã trả sẵn `price_change`/`percent_change`/`total_value` — không cần
+  suy ra từ OHLCV.
+- `Listing(source="vci").symbols_by_industries()` trả ICB cho toàn bộ mã trong **1 lần gọi HTTP**
+  (không loop theo mã).
+
+→ Cả 2 job mới chỉ tốn đúng 1 request vnstock/lần chạy, rẻ như `StockListingSyncService`.
+
+```
+stocks (toàn bộ ~1500 mã STOCK) → MarketSnapshotIngestionService [@Scheduled 18:20 T2-T6]
+  → VnstockClient.fetchPriceBoard(symbols)   [1 call cho CẢ TOÀN THỊ TRƯỜNG, không loop]
+  → PriceQuoteMapper.toDomain()               [tái dùng nguyên, per-row error isolation]
+  → lọc bỏ mã close_price=0 (không khớp lệnh phiên đó — ~45% thị trường, nếu giữ lại sẽ làm
+    sai lệch nặng số liệu "đứng giá")
+  → MarketSnapshotRepository.upsertAll()       [bảng thường daily_market_snapshot, không hypertable]
+
+Listing(source="vci") → IndustrySyncService [@Scheduled 2:30 hằng ngày]
+  → lọc icb_level=2 (~19 ngành, vd "Ngân hàng", "Bất động sản")
+  → StockRepository.upsertIndustries()         [update-only, cột stocks.icb_code/icb_name]
+```
+
+- `GET /api/v1/market/breadth` — đếm advancing/declining/unchanged/ceiling/floor trực tiếp bằng SQL
+  (`count(*) FILTER (WHERE ...)`), đọc ngày snapshot mới nhất.
+- `GET /api/v1/market/sectors` — gộp theo `icb_code`, dùng chung cho cả treemap (toàn bộ) lẫn dòng
+  tiền (FE tự sort theo `|moneyFlow|`, lấy top 9) — 1 nguồn dữ liệu, 2 cách hiển thị, giống hệt cách
+  mock cũ đã làm.
+- **Không có market cap thật** (vnstock không trả shares outstanding) — `marketCapWeight` thực chất
+  là **tỷ trọng turnover** (giá trị khớp lệnh), `moneyFlow` là heuristic
+  (`turnover × dấu(percentChange)`), không phải order-flow thật. Ghi rõ trong javadoc
+  `SectorSnapshotResponse` để không ai tưởng là dữ liệu chính xác.
+- Bug phát hiện khi code: `price_board` trả `NaN` cho các mã không khớp lệnh, và FastAPI's JSON
+  encoder crash thẳng trên `NaN` (watchlist nhỏ chưa bao giờ trúng mã nào NaN nên bug này ẩn từ đầu
+  dự án) — `DataFrame.where(pd.notnull(df), None)` tưởng sửa được nhưng **không**, vì cột float64
+  không giữ được `None` (numpy tự ép ngược về NaN); phải `.astype(object)` trước. Fix áp dụng chung
+  cho mọi route ở `python/src/vst_python/api.py` (`_to_records`), không chỉ riêng `/price-board`.
+- Trigger tay cho dev: `POST /api/v1/market/industries/sync`, `POST /api/v1/market/snapshot/ingest`
+  (chỉ profile `dev`, mirror `IndexIngestionController`).
+- Migration `V7__market_snapshot.sql`: `stocks.icb_code`/`icb_name`, bảng `daily_market_snapshot`.
 
 ## API đã có (tính đến hiện tại)
 
@@ -156,6 +203,10 @@ static rồi serve qua nginx, nginx proxy `/api/` và `/ws` (có Upgrade header)
 | GET | `/api/v1/indices` | 4 |
 | GET | `/api/v1/indices/{symbol}/ohlcv?start=&end=` | 4 |
 | POST | `/api/v1/indices/ingest` (**chỉ profile `dev`**) | 4 |
+| GET | `/api/v1/market/breadth` | 4b |
+| GET | `/api/v1/market/sectors` | 4b |
+| POST | `/api/v1/market/industries/sync` (**chỉ profile `dev`**) | 4b |
+| POST | `/api/v1/market/snapshot/ingest` (**chỉ profile `dev`**) | 4b |
 
 **Python service (`localhost:8000`, nội bộ — backend gọi, không phải public API)**
 
@@ -165,17 +216,17 @@ static rồi serve qua nginx, nginx proxy `/api/` và `/ws` (có Upgrade header)
 | GET | `/listing` | 2 | `Listing().symbols_by_exchange()` |
 | GET | `/price-board?symbols=` | 3 | `Trading().price_board(symbols)` |
 | GET | `/index-ohlcv?symbol=&start=&end=` | 4 | `Market().index(symbol).ohlcv()` |
+| GET | `/industries` | 4b | `Listing(source="vci").symbols_by_industries()` |
 
 vnstock còn nhiều class/API chưa dùng tới (`Company`, `Finance`, `Fundamental`, `Quote.intraday`,
 `Fund`...) — tiềm năng cho phần "advisory" (phân tích cơ bản) ở các phase sau.
 
 ## Kế hoạch từ đây
 
-- **Phase 4 (đang làm)**: trang chủ + trang chi tiết mã + chart OHLCV đã xong. Còn lại trên FE là
-  2 widget đang dùng mock (độ rộng thị trường, ngành/dòng tiền) — chờ backend, xem `CLAUDE.md`.
-- **Việc đang chờ cụ thể** (có ghi chi tiết trong `CLAUDE.md`): backend cho độ rộng thị trường +
-  ngành/dòng tiền (2 widget FE còn mock); multi-user/auth cho watchlist. `price_snapshots`
-  hypertable tạo từ Phase 1 vẫn chưa dùng.
+- **Phase 4 + 4b (hoàn thành)**: trang chủ (kể cả breadth/treemap/dòng tiền) + trang chi tiết mã +
+  chart OHLCV đều xong, không còn mock nào trên trang chủ.
+- **Việc đang chờ cụ thể** (có ghi chi tiết trong `CLAUDE.md`): multi-user/auth cho watchlist.
+  `price_snapshots` hypertable tạo từ Phase 1 vẫn chưa dùng.
 - **Phase 5 (dự kiến, chưa chi tiết)**: nâng cao chất lượng test — Testcontainers, SonarQube,
   coverage threshold.
 - **Phase 6-7**: chưa có tài liệu chốt chi tiết — xem `CLAUDE.md` cho các việc đang chờ, cần xác

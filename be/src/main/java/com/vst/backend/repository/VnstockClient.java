@@ -1,5 +1,6 @@
 package com.vst.backend.repository;
 
+import com.vst.backend.dto.vnstock.VnstockIndustryDto;
 import com.vst.backend.dto.vnstock.VnstockListingItemDto;
 import com.vst.backend.dto.vnstock.VnstockOhlcvDto;
 import com.vst.backend.dto.vnstock.VnstockPriceBoardDto;
@@ -70,6 +71,20 @@ public class VnstockClient {
                     });
         } catch (RestClientException e) {
             throw new DataFetchException("Failed to fetch stock listing from vnstock service", e);
+        }
+    }
+
+    @Retry(name = "vnstock")
+    @CircuitBreaker(name = "vnstock")
+    public List<VnstockIndustryDto> fetchIndustries() {
+        try {
+            return restClient.get()
+                    .uri("/industries")
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<List<VnstockIndustryDto>>() {
+                    });
+        } catch (RestClientException e) {
+            throw new DataFetchException("Failed to fetch ICB industries from vnstock service", e);
         }
     }
 
