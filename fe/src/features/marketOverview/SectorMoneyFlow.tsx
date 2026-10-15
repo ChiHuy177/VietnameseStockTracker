@@ -1,7 +1,25 @@
-import { getSectorMoneyFlow } from './marketOverviewMockData';
+import { useSectorSnapshots } from './useSectorSnapshots';
+
+const TOP_SECTOR_COUNT = 9;
 
 export function SectorMoneyFlow() {
-  const sectors = getSectorMoneyFlow();
+  const { data, isLoading, isError } = useSectorSnapshots();
+
+  if (isLoading) {
+    return <div className="bg-muted h-48 w-full animate-pulse rounded-lg" aria-hidden="true" />;
+  }
+
+  if (isError || !data || data.length === 0) {
+    return (
+      <p role="alert" className="text-muted-foreground rounded-xl border border-dashed p-4 text-sm">
+        Chưa tải được dòng tiền theo ngành — có thể job snapshot thị trường chưa chạy phiên nào.
+      </p>
+    );
+  }
+
+  // Top N ngành theo |dòng tiền| — không có danh sách mã cố định như mock, dữ liệu thật thay đổi
+  // theo từng phiên nên ngành nào nổi bật nhất là tuỳ phiên đó.
+  const sectors = [...data].sort((a, b) => Math.abs(b.moneyFlow) - Math.abs(a.moneyFlow)).slice(0, TOP_SECTOR_COUNT);
   const maxAbs = Math.max(...sectors.map((sector) => Math.abs(sector.moneyFlow)));
 
   return (

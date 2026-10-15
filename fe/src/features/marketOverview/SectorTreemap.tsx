@@ -1,5 +1,5 @@
-import { getSectorTreemap } from './marketOverviewMockData';
 import { computeTreemapLayout } from './treemapLayout';
+import { useSectorSnapshots } from './useSectorSnapshots';
 
 const LOGICAL_WIDTH = 1000;
 const LOGICAL_HEIGHT = 300;
@@ -18,7 +18,20 @@ function cellClasses(percentChange: number): string {
 }
 
 export function SectorTreemap() {
-  const sectors = getSectorTreemap();
+  const { data: sectors, isLoading, isError } = useSectorSnapshots();
+
+  if (isLoading) {
+    return <div className="bg-muted h-75 w-full animate-pulse rounded-lg" aria-hidden="true" />;
+  }
+
+  if (isError || !sectors || sectors.length === 0) {
+    return (
+      <p role="alert" className="text-muted-foreground rounded-xl border border-dashed p-4 text-sm">
+        Chưa tải được bản đồ ngành — có thể job snapshot thị trường chưa chạy phiên nào.
+      </p>
+    );
+  }
+
   const items = sectors.map((sector) => ({ weight: sector.marketCapWeight, sector }));
   const rects = computeTreemapLayout(items, LOGICAL_WIDTH, LOGICAL_HEIGHT, NUM_ROWS);
 

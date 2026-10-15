@@ -1,7 +1,26 @@
-import { getMarketBreadth } from './marketOverviewMockData';
+import { useMarketBreadth } from './useMarketBreadth';
 
 export function MarketBreadthBar() {
-  const breadth = getMarketBreadth();
+  const { data: breadth, isLoading, isError } = useMarketBreadth();
+
+  if (isLoading) {
+    return (
+      <div className="bg-card flex h-18 items-center gap-6 rounded-xl border p-4" aria-hidden="true">
+        <div className="bg-muted h-2.5 w-full animate-pulse rounded-full" />
+      </div>
+    );
+  }
+
+  // Backend trả 404 khi chưa có snapshot nào trong `daily_market_snapshot` — job
+  // `MarketSnapshotIngestionService` (cron 18:20 T2-T6) chưa chạy phiên nào, không phải lỗi hạ tầng.
+  if (isError || !breadth) {
+    return (
+      <p role="alert" className="text-muted-foreground rounded-xl border border-dashed p-4 text-sm">
+        Chưa tải được độ rộng thị trường — có thể job snapshot thị trường chưa chạy phiên nào.
+      </p>
+    );
+  }
+
   const total = breadth.advancing + breadth.unchanged + breadth.declining;
   const advancingPct = (breadth.advancing / total) * 100;
   const unchangedPct = (breadth.unchanged / total) * 100;
