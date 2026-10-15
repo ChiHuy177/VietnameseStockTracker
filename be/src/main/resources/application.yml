@@ -16,3 +16,41 @@ management:
     web:
       exposure:
         include: health,info
+
+vnstock:
+  base-url: ${VNSTOCK_SERVICE_URL:http://localhost:8000}
+
+ingestion:
+  symbols: ${INGESTION_SYMBOLS:VNM,VCB,FPT}
+  all-symbols: ${INGESTION_ALL_SYMBOLS:false}
+  lookback-days: ${INGESTION_LOOKBACK_DAYS:7}
+  cron: ${INGESTION_CRON:0 0 18 * * MON-FRI}
+
+index-ingestion:
+  lookback-days: ${INDEX_INGESTION_LOOKBACK_DAYS:7}
+  cron: ${INDEX_INGESTION_CRON:0 10 18 * * MON-FRI}
+
+listing-sync:
+  cron: ${LISTING_SYNC_CRON:0 0 2 * * *}
+
+industry-sync:
+  cron: ${INDUSTRY_SYNC_CRON:0 30 2 * * *}
+
+market-snapshot:
+  cron: ${MARKET_SNAPSHOT_CRON:0 20 18 * * MON-FRI}
+
+price-board:
+  poll-cron: ${PRICE_BOARD_POLL_CRON:*/3 * * * * *}
+
+resilience4j:
+  retry:
+    instances:
+      vnstock:
+        max-attempts: 3
+        wait-duration: 500ms
+  circuitbreaker:
+    instances:
+      vnstock:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s

@@ -136,8 +136,14 @@ Chưa có bước deploy — CI hiện tại chỉ để bắt lỗi build/test 
 
 ## Tiến độ
 
-- [x] Phase 0 — Bước 1: Root + Backend skeleton (health endpoint, exception handling, config profiles)
-- [x] Phase 0 — Bước 2: Docker Compose + TimescaleDB
-- [x] Phase 0 — Bước 3: Frontend scaffold
-- [x] Phase 0 — Bước 4: Python service scaffold
-- [x] Phase 0 — Bước 5: CI (GitHub Actions)
+Chi tiết đầy đủ (kiến trúc, luồng dữ liệu, API đã có) xem [docs/PROGRESS.md](docs/PROGRESS.md).
+
+- [x] Phase 0 — Nền tảng: backend skeleton, Docker Compose + TimescaleDB, frontend scaffold,
+      Python service scaffold, CI
+- [x] Phase 1 — Ingest OHLCV: fetch từ vnstock, anti-corruption layer, scheduled ingestion job
+- [x] Phase 2 — Backend API: Swagger, đọc lịch sử OHLCV, search mã, watchlist CRUD (global)
+- [x] Phase 3 — Real-time: poll price board watchlist + broadcast STOMP/WebSocket, FE đã tiêu thụ.
+      Còn thiếu: lưu snapshot lịch sử tick (`price_snapshots` chưa dùng)
+- [ ] Phase 4 — Frontend: trang chủ (chỉ số thị trường, search, watchlist) + trang chi tiết mã
+      (chart OHLCV + bảng giá kiểu SSI iBoard) xong. Còn 2 widget dùng mock data: độ rộng thị
+      trường và ngành/dòng tiền — chờ backend, xem `CLAUDE.md`
