@@ -1,0 +1,74 @@
+"""Fetch stock price data from vnstock.
+
+Phase 1 scaffold: wraps vnstock's Market API behind a small function so the
+rest of the codebase (and later, the mapper/anti-corruption layer) doesn't
+depend on vnstock's class structure directly.
+"""
+
+from vnstock import Listing, Market, Trading
+
+_market = Market()
+_listing = Listing()
+_trading = Trading()
+# ICB sector classification is only implemented by the "vci" source — the default (kbs) used by
+# _listing above raises NotImplementedError for industries_icb()/symbols_by_industries().
+_listing_vci = Listing(source="vci")
+
+
+def fetch_ohlcv(symbol: str, start: str, end: str):
+    """Fetch daily OHLCV history for one symbol.
+
+    symbol: mã cổ phiếu, ví dụ "VNM"
+    start, end: định dạng "YYYY-MM-DD"
+
+    Trả về pandas.DataFrame với các cột: time, open, high, low, close, volume.
+    """
+    return _market.equity(symbol).ohlcv(start=start, end=end)
+
+
+def fetch_index_ohlcv(symbol: str, start: str, end: str):
+    """Fetch daily OHLCV history for one market index.
+
+    symbol: "VNINDEX", "VN30", "HNXINDEX", hoặc "UPCOMINDEX" (không gạch ngang).
+    start, end: định dạng "YYYY-MM-DD"
+
+    Trả về pandas.DataFrame với các cột: time, open, high, low, close, volume —
+    giống hệt fetch_ohlcv (vnstock không có API lấy giá trị chỉ số hiện tại riêng,
+    chỉ có lịch sử OHLCV; "giá trị hiện tại" phải tính từ bar gần nhất ở tầng gọi).
+    """
+    return _market.index(symbol).ohlcv(start=start, end=end)
+
+
+def fetch_listing():
+    """Fetch toàn bộ danh sách mã cổ phiếu (không gồm cw/fund/future/bond) kèm tên công ty và sàn.
+
+    Trả về pandas.DataFrame với các cột: symbol, organ_name, exchange.
+    """
+    df = _listing.symbols_by_exchange()
+    return df.loc[df["type"] == "stock", ["symbol", "organ_name", "exchange"]]
+
+
+def fetch_price_board(symbols: list[str]):
+    """Fetch bảng giá hiện tại (giá khớp, % thay đổi, bid/ask) cho một danh sách mã.
+
+    Trả về pandas.DataFrame với các cột gồm symbol, close_price, price_change,
+    percent_change, volume_accumulated, bid/ask_price_1..3, ...
+
+    Chấp nhận được cả danh sách ~1500+ mã trong 1 lần gọi (đã verify thủ công: ~4s, không lỗi,
+    không cần chia lô) — dùng cho cả watchlist (vài mã) lẫn snapshot toàn thị trường.
+    """
+    return _trading.price_board(symbols)
+
+
+def fetch_industries():
+    """Fetch phân loại ngành ICB (4 cấp, rộng → hẹp) cho toàn bộ mã trên thị trường, 1 lần gọi.
+
+    Trả về pandas.DataFrame với các cột: symbol, icb_level, icb_code, icb_name. Lọc theo
+    icb_level ở tầng Java (IndustryMapper), không lọc ở đây — DataFrame trả nguyên bản.
+    """
+    return _listing_vci.symbols_by_industries(lang="vi")
+
+
+if __name__ == "__main__":
+    df = fetch_ohlcv("VNM", "2026-08-01", "2026-09-03")
+    print(df)

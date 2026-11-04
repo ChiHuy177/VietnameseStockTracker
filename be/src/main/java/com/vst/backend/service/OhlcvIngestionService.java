@@ -1,0 +1,95 @@
+package com.vst.backend.service;
+
+import com.vst.backend.dto.vnstock.VnstockOhlcvDto;
+import com.vst.backend.mapper.OhlcvMapper;
+import com.vst.backend.model.OhlcvBar;
+import com.vst.backend.repository.PriceHistoryRepository;
+import com.vst.backend.repository.StockRepository;
+import com.vst.backend.repository.VnstockClient;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+
+/**
+ * Periodically fetches OHLCV data (via {@link VnstockClient}) for either a fixed watchlist or
+ * every known symbol, and upserts it into {@code price_history_ohlcv}. One symbol failing does
+ * not stop the others — this method runs outside any HTTP request, so GlobalExceptionHandler
+ * never sees exceptions thrown here.
+ *
+ * <p>Uses incremental sync: checks the latest existing bar in the DB for each symbol so missed
+ * days (e.g. server downtime) are automatically backfilled, while daily runs only pull recent bars.
+ */
+@Service
+public class OhlcvIngestionService {
+
+    private static final Logger log = LoggerFactory.getLogger(OhlcvIngestionService.class);
+    private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+
+    private final VnstockClient vnstockClient;
+    private final OhlcvMapper mapper;
+    private final StockRepository stockRepository;
+    private final PriceHistoryRepository priceHistoryRepository;
+    private final List<String> configuredSymbols;
+    private final boolean allSymbols;
+    private final long lookbackDays;
+
+    public OhlcvIngestionService(
+            VnstockClient vnstockClient,
+            OhlcvMapper mapper,
+            StockRepository stockRepository,
+            PriceHistoryRepository priceHistoryRepository,
+            @Value("${ingestion.symbols}") String symbolsCsv,
+            @Value("${ingestion.all-symbols}") boolean allSymbols,
+            @Value("${ingestion.lookback-days}") long lookbackDays) {
+        this.vnstockClient = vnstockClient;
+        this.mapper = mapper;
+        this.stockRepository = stockRepository;
+        this.priceHistoryRepository = priceHistoryRepository;
+        this.configuredSymbols = List.of(symbolsCsv.split(","));
+        this.allSymbols = allSymbols;
+        this.lookbackDays = lookbackDays;
+    }
+
+    @Scheduled(cron = "${ingestion.cron}")
+    public void ingestAll() {
+        LocalDate today = LocalDate.now(VN_ZONE);
+        List<String> symbols = allSymbols ? stockRepository.findAllSymbols() : configuredSymbols;
+        log.info("Starting OHLCV ingestion for {} symbols (allSymbols={})", symbols.size(), allSymbols);
+
+        Map<Long, LocalDate> latestDates = priceHistoryRepository.findLatestDates();
+
+        for (String symbol : symbols) {
+            String cleanSymbol = symbol.strip();
+            try {
+                long stockId = stockRepository.findOrCreateBySymbol(cleanSymbol);
+                LocalDate latest = latestDates.get(stockId);
+                LocalDate start = (latest != null) ? latest : today.minusDays(lookbackDays);
+                LocalDate end = today;
+
+                if (start.isAfter(end)) {
+                    start = end;
+                }
+
+                ingestOne(stockId, cleanSymbol, start, end);
+            } catch (Exception e) {
+                log.error("Ingestion failed for symbol {}", cleanSymbol, e);
+            }
+        }
+
+        log.info("OHLCV ingestion cycle complete: {} symbols processed", symbols.size());
+    }
+
+    private void ingestOne(long stockId, String symbol, LocalDate start, LocalDate end) {
+        List<VnstockOhlcvDto> dtos = vnstockClient.fetchOhlcv(symbol, start.toString(), end.toString());
+        List<OhlcvBar> bars = dtos.stream().map(dto -> mapper.toDomain(stockId, symbol, dto)).toList();
+
+        priceHistoryRepository.upsertAll(bars);
+        log.info("Ingested {} bars for {} (from {} to {})", bars.size(), symbol, start, end);
+    }
+}
