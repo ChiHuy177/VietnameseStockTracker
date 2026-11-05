@@ -3,13 +3,18 @@ package com.vst.backend.repository;
 import com.vst.backend.model.OhlcvBar;
 import java.sql.Timestamp;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public class PriceHistoryRepository {
+
+    private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private static final String UPSERT_SQL = """
             INSERT INTO price_history_ohlcv (stock_id, time, interval, open, high, low, close, volume, source)
@@ -37,6 +42,12 @@ public class PriceHistoryRepository {
             WHERE stock_id = ?
             ORDER BY time DESC
             LIMIT 2
+            """;
+
+    private static final String FIND_LATEST_DATES_SQL = """
+            SELECT stock_id, MAX(time) AS latest_time
+            FROM price_history_ohlcv
+            GROUP BY stock_id
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -91,5 +102,23 @@ public class PriceHistoryRepository {
                 rs.getLong("volume"),
                 rs.getString("source")),
                 stockId);
+    }
+
+    /**
+     * Returns a map of stock_id -> latest date with OHLCV data in VN timezone.
+     * Single query with GROUP BY across all stocks — no N+1 query.
+     */
+    public Map<Long, LocalDate> findLatestDates() {
+        return jdbcTemplate.query(FIND_LATEST_DATES_SQL, rs -> {
+            Map<Long, LocalDate> result = new HashMap<>();
+            while (rs.next()) {
+                long stockId = rs.getLong("stock_id");
+                Timestamp ts = rs.getTimestamp("latest_time");
+                if (ts != null) {
+                    result.put(stockId, ts.toInstant().atZone(VN_ZONE).toLocalDate());
+                }
+            }
+            return result;
+        });
     }
 }
